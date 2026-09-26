@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FileBridge</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23131410%27/%3E%3Cpath d=%27M9 24V15M16 24V9M23 24v-7%27 stroke=%27%237BC94C%27 stroke-width=%273.2%27 stroke-linecap=%27round%27/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/static/fonts/fonts.css">
+<link rel="stylesheet" href="/static/style.css">
+<script>window.FB_TOKEN = "{{TOKEN}}";</script>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V10M12 19V5M20 19v-7"/></svg></span>FileBridge</div>
+  <select id="siteSelect" title="Saved sites"></select>
+  <button id="btnConnect" class="primary">Connect</button>
+  <button id="btnDisconnect" hidden>Disconnect</button>
+  <span id="connStatus" class="status">Not connected</span>
+  <div class="spacer"></div>
+  <button id="btnSites">Site Manager</button>
+  <button id="btnCompare">Compare &amp; sync</button>
+  <button id="btnDeploy">Deploy</button>
+  <button id="btnPlugins">Plugins ▾</button>
+</header>
+
+<main class="panes">
+  <section class="pane" id="paneLocal"></section>
+  <section class="pane" id="paneRemote"></section>
+</main>
+
+<section class="bottom">
+  <div class="bottom-head">
+    <div class="tabs">
+      <button class="tab active" data-tab="queue">Queue <span id="queueCount" class="badge" hidden></span></button>
+      <button class="tab" data-tab="log">Log</button>
+    </div>
+    <div class="spacer"></div>
+    <label class="inline">If file exists
+      <select id="policy">
+        <option value="skip_exists">Skip if exists</option>
+        <option value="newer">Overwrite if newer</option>
+        <option value="overwrite">Overwrite</option>
+        <option value="skip_same">Skip if same size</option>
+        <option value="resume">Resume</option>
+      </select>
+    </label>
+    <button id="btnClearJobs" class="small">Clear finished</button>
+  </div>
+  <div id="queue" class="tabpane"></div>
+  <div id="log" class="tabpane" hidden></div>
+</section>
+
+<footer class="appfoot">
+  <span class="dl-mark"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V10M12 19V5M20 19v-7"/></svg>FileBridge</span>
+  <span>by DataLore · © <span id="year">2026</span></span>
+  <div class="spacer"></div>
+  <a href="https://datalore.eu" target="_blank" rel="noopener" title="Visit datalore.eu">datalore.eu <span class="arrow"><svg viewBox="0 0 24 24" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></a>
+</footer>
+
+<div id="menu" class="menu" hidden></div>
+<div id="modalRoot"></div>
+<div id="toasts"></div>
+<script src="/static/app.js"></script>
+</body>
+</html>

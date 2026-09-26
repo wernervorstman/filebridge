@@ -1,0 +1,70 @@
+"""Operations on the local file system."""
+import os
+import shutil
+import stat
+
+from . import system
+from .common import ApiError, make_entry
+
+
+def norm(path):
+    return os.path.abspath(os.path.expanduser(path or '~'))
+
+
+def list_dir(path):
+    path = norm(path)
+    if not os.path.isdir(path):
+        raise ApiError(f'Folder not found: {path}')
+    entries = []
+    with os.scandir(path) as it:
+        for e in it:
+            try:
+                st = e.stat(follow_symlinks=True)
+            except OSError:
+                st = e.stat(follow_symlinks=False)
+            is_dir = stat.S_ISDIR(st.st_mode)
+            entries.append(make_entry(e.name, os.path.join(path, e.name), is_dir,
+                                      st.st_size, st.st_mtime, stat.filemode(st.st_mode),
+                                      e.is_symlink(), st.st_mode))
+    return path, entries
+
+
+def parent(path):
+    """Parent folder, or None at the top (/ or a drive such as C:\\)."""
+    p = os.path.dirname(path.rstrip('/\\') or path)
+    return None if not p or os.path.normcase(p) == os.path.normcase(path) else p
+
+
+def mkdir(path):
+    os.makedirs(norm(path), exist_ok=False)
+
+
+def rename(src, dst):
+    src, dst = norm(src), norm(dst)
+    if os.path.exists(dst):
+        raise ApiError(f'"{os.path.basename(dst)}" already exists')
+    os.rename(src, dst)
+
+
+def move(paths, dest):
+    dest = norm(dest)
+    if not os.path.isdir(dest):
+        raise ApiError(f'Folder not found: {dest}')
+    for p in paths:
+        p = norm(p)
+        target = os.path.join(dest, os.path.basename(p))
+        if dest == p or dest.startswith(p + os.sep):
+            raise ApiError(f'Cannot move "{os.path.basename(p)}" into itself')
+        if os.path.exists(target):
+            raise ApiError(f'"{os.path.basename(p)}" already exists in {dest}')
+        shutil.move(p, target)
+
+
+def trash(path):
+    """Move to the Trash / Recycle Bin (recoverable) instead of deleting permanently."""
+    system.trash(norm(path))
+
+
+def delete(paths):
+    for p in paths:
+        trash(p)
