@@ -82,6 +82,11 @@ class JobManager:
         except Cancelled:
             job.status = 'cancelled'
             self._log(f'Cancelled: {job.title}', 'warn')
+        except PermissionError as e:
+            from .system import permission_hint  # e.g. macOS blocks Downloads/Documents until allowed
+            job.status = 'error'
+            job.error = permission_hint(e.filename) if e.filename else str(e)
+            self._log(f'Failed: {job.title} – {job.error}', 'error')
         except Exception as e:
             job.status = 'error'
             job.error = str(e) or type(e).__name__

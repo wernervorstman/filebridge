@@ -16,7 +16,11 @@ def list_dir(path):
     if not os.path.isdir(path):
         raise ApiError(f'Folder not found: {path}')
     entries = []
-    with os.scandir(path) as it:
+    try:
+        it = os.scandir(path)
+    except PermissionError:
+        raise ApiError(system.permission_hint(path))
+    with it:
         for e in it:
             try:
                 st = e.stat(follow_symlinks=True)

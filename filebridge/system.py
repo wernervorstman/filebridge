@@ -58,6 +58,16 @@ def keychain_name():
     return 'the macOS Keychain' if IS_MAC else 'Windows Credential Manager' if IS_WIN else 'the system keyring'
 
 
+def permission_hint(path):
+    """A helpful message when the operating system blocks access to a local folder."""
+    name = os.path.basename(path.rstrip('/\\')) or path
+    if IS_MAC:
+        return (f'macOS does not allow FileBridge to open "{name}" yet. Open System Settings → Privacy & Security → '
+                f'Files and Folders, find FileBridge and switch on access to this folder (or add FileBridge under '
+                f'Full Disk Access). Then click Refresh.')
+    return f'You do not have permission to open "{name}".'
+
+
 def file_manager_name():
     return 'Finder' if IS_MAC else 'Explorer' if IS_WIN else 'file manager'
 

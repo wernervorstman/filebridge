@@ -46,6 +46,12 @@ if IS_MAC:
             'NSHumanReadableCopyright': 'DataLore – datalore.eu',
             'NSHighResolutionCapable': True,
             'LSMinimumSystemVersion': '11.0',
+            # Texts macOS shows when FileBridge asks for access to protected folders
+            'NSDownloadsFolderUsageDescription': 'FileBridge needs access to your Downloads folder to upload and download files there.',
+            'NSDocumentsFolderUsageDescription': 'FileBridge needs access to your Documents folder to upload and download files there.',
+            'NSDesktopFolderUsageDescription': 'FileBridge needs access to your Desktop folder to upload and download files there.',
+            'NSRemovableVolumesUsageDescription': 'FileBridge needs access to external drives to upload and download files there.',
+            'NSNetworkVolumesUsageDescription': 'FileBridge needs access to network drives to upload and download files there.',
         },
     )
 else:
