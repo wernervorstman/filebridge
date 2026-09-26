@@ -114,3 +114,8 @@ build/filebridge.spec  PyInstaller recipe (see BUILD.md)
 static/                interface (HTML/CSS/JS, no build step)
 plugins/               your extensions
 ```
+
+## License
+
+FileBridge is released under the [MIT License](LICENSE) by DataLore ([datalore.eu](https://datalore.eu)).
+The bundled fonts Inter and Archivo are licensed under the SIL Open Font License 1.1.
