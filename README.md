@@ -7,6 +7,8 @@ You can add your own options through plugins.
 
 **App (recommended):** open `FileBridge.app` (macOS), `FileBridge.exe` (Windows) or `FileBridge` (Linux).
 FileBridge opens in its own window. See [BUILD.md](BUILD.md) for how the apps are built.
+Installing without signing certificates, first-launch warnings and Linux: see
+[docs/INSTALL.md](docs/INSTALL.md).
 
 **From the source code:**
 - Double-click **`start-app.command`** to open FileBridge in its own window.

@@ -30,8 +30,9 @@ The app is in `dist/FileBridge.app` and the disk image in `dist/FileBridge-macOS
 
 ## First launch warnings (unsigned builds)
 
-- **macOS:** "FileBridge can't be opened because Apple cannot check it…". Right-click the app →
-  **Open** → **Open**. This is needed once. To remove the warning for everyone, sign and notarize the
+- **macOS:** "FileBridge.app Not Opened – Apple could not verify…". Click **Done**, then
+  **System Settings → Privacy & Security → Open Anyway** (macOS 15 and later; on macOS 14 and earlier
+  right-click the app → **Open** → **Open**). This is needed once per version. To remove the warning for everyone, sign and notarize the
   app with an Apple Developer ID ($99/year).
 - **Windows:** SmartScreen shows "Windows protected your PC". Click **More info** → **Run anyway**.
   Signing with a code-signing certificate removes this.
