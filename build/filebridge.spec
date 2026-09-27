@@ -12,6 +12,10 @@ sys.path.insert(0, ROOT)
 from filebridge import __version__  # noqa: E402
 
 IS_MAC = sys.platform == 'darwin'
+# macOS signing: set MACOS_SIGNING_IDENTITY (e.g. "Developer ID Application: Name (TEAMID)") to sign
+# every binary with the hardened runtime, as Apple's notarization requires. Unset = unsigned build.
+MAC_IDENTITY = os.environ.get('MACOS_SIGNING_IDENTITY') or None
+MAC_ENTITLEMENTS = os.path.join(SPECPATH, 'entitlements.plist') if MAC_IDENTITY else None
 IS_WIN = sys.platform.startswith('win')
 
 hidden = collect_submodules('filebridge') + [
@@ -34,11 +38,13 @@ pyz = PYZ(a.pure)
 
 if IS_MAC:
     exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name='FileBridge', console=False,
-              icon=os.path.join(SPECPATH, 'icon.icns'))
+              icon=os.path.join(SPECPATH, 'icon.icns'),
+              codesign_identity=MAC_IDENTITY, entitlements_file=MAC_ENTITLEMENTS)
     coll = COLLECT(exe, a.binaries, a.datas, name='FileBridge')
     app = BUNDLE(
         coll, name='FileBridge.app', icon=os.path.join(SPECPATH, 'icon.icns'),
         bundle_identifier='eu.datalore.filebridge', version=__version__,
+        codesign_identity=MAC_IDENTITY, entitlements_file=MAC_ENTITLEMENTS,
         info_plist={
             'CFBundleName': 'FileBridge',
             'CFBundleDisplayName': 'FileBridge',

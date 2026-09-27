@@ -131,6 +131,23 @@ static/                interface (HTML/CSS/JS, no build step)
 plugins/               your extensions
 ```
 
+## Verifying a download
+
+Every release has a `SHA256SUMS.txt` with the checksums of the downloads, signed with the
+**DataLore FileBridge Releases** GPG key (fingerprint
+`4A2E 2EFB D80F 3DEA 3E81 9577 A801 DC3B 7A0B 668F`, public key in
+[docs/filebridge-release-key.asc](docs/filebridge-release-key.asc)).
+
+```bash
+gpg --import filebridge-release-key.asc
+gpg --verify SHA256SUMS.txt.asc SHA256SUMS.txt      # must say "Good signature"
+shasum -a 256 -c SHA256SUMS.txt --ignore-missing    # must say "OK" for your download
+```
+
+On Windows: `certutil -hashfile FileBridge.exe SHA256` and compare with `SHA256SUMS.txt`.
+Once the code-signing certificates are in place, the Windows and macOS apps are also signed by
+DataLore (Windows) and notarized by Apple (macOS).
+
 ## License
 
 FileBridge is released under the [MIT License](LICENSE) by DataLore ([datalore.eu](https://datalore.eu)).

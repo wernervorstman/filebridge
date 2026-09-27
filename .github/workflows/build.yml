@@ -1,6 +1,15 @@
-# Builds FileBridge for macOS, Windows and Linux.
-# Runs when you push a version tag (e.g. v1.0.0) or start it by hand under "Actions".
-# The finished apps appear as downloadable artifacts, and on a tag also as a GitHub Release.
+# Builds FileBridge for macOS, Windows and Linux, signs what it can, and publishes a release.
+# Runs when you push a version tag (e.g. v1.3.0) or start it by hand under "Actions".
+#
+# Signing is optional and switches on by itself once the secrets exist
+# (repository Settings → Secrets and variables → Actions). Without them the
+# builds are simply unsigned, exactly as before. See BUILD.md → "Signing".
+#
+#   Windows (Certum SimplySign cloud):  CERTUM_USERNAME, CERTUM_TOTP_SECRET
+#   macOS (Apple Developer ID):         MACOS_CERTIFICATE_P12 (base64), MACOS_CERTIFICATE_PASSWORD,
+#                                       MACOS_SIGNING_IDENTITY,
+#                                       and for notarization APPLE_ID, APPLE_TEAM_ID, APPLE_APP_PASSWORD
+#   Release checksums (GPG):            GPG_PRIVATE_KEY
 name: Build FileBridge
 
 on:
@@ -9,7 +18,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
@@ -24,6 +33,10 @@ jobs:
           - os: ubuntu-22.04
             artifact: FileBridge-Linux
     runs-on: ${{ matrix.os }}
+    env:
+      HAS_CERTUM: ${{ secrets.CERTUM_USERNAME != '' && secrets.CERTUM_TOTP_SECRET != '' }}
+      HAS_MAC_CERT: ${{ secrets.MACOS_CERTIFICATE_P12 != '' }}
+      HAS_NOTARY: ${{ secrets.APPLE_ID != '' && secrets.APPLE_TEAM_ID != '' && secrets.APPLE_APP_PASSWORD != '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -36,15 +49,87 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-build.txt
 
+      # ---------------------------------------------------------------- macOS
+      - name: Import Apple signing certificate (macOS)
+        if: runner.os == 'macOS' && env.HAS_MAC_CERT == 'true'
+        env:
+          P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          P12_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -hex 24)"
+          echo "$P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/cert.p12" -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          rm -f "$RUNNER_TEMP/cert.p12"
+          echo "MACOS_SIGNING_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
+
       - name: Build
         run: pyinstaller --noconfirm --clean --distpath dist --workpath build/work build/filebridge.spec
 
+      - name: Notarize the app (macOS)
+        if: runner.os == 'macOS' && env.HAS_MAC_CERT == 'true' && env.HAS_NOTARY == 'true'
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          codesign --verify --deep --strict --verbose=2 dist/FileBridge.app
+          ditto -c -k --keepParent dist/FileBridge.app "$RUNNER_TEMP/FileBridge.zip"
+          xcrun notarytool submit "$RUNNER_TEMP/FileBridge.zip" --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD" --wait
+          xcrun stapler staple dist/FileBridge.app
+
       - name: Package (macOS)
         if: runner.os == 'macOS'
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
         run: |
           hdiutil create -volname FileBridge -srcfolder dist/FileBridge.app -ov -format UDZO dist/FileBridge-macOS.dmg
+          if [ "$HAS_MAC_CERT" = "true" ]; then
+            codesign --sign "$MACOS_SIGNING_IDENTITY" --timestamp dist/FileBridge-macOS.dmg
+            if [ "$HAS_NOTARY" = "true" ]; then
+              xcrun notarytool submit dist/FileBridge-macOS.dmg --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD" --wait
+              xcrun stapler staple dist/FileBridge-macOS.dmg
+              spctl --assess --type open --context context:primary-signature -vv dist/FileBridge-macOS.dmg
+            fi
+          fi
           rm -rf dist/FileBridge
 
+      - name: Remove signing keychain (macOS)
+        if: always() && runner.os == 'macOS' && env.HAS_MAC_CERT == 'true'
+        run: security delete-keychain "$RUNNER_TEMP/signing.keychain-db" || true
+
+      # ---------------------------------------------------------------- Windows
+      # Certum SimplySign login, pinned to a reviewed commit of the action (v1, reviewed 2026-09-27):
+      # it only downloads SimplySign Desktop from files.certum.eu and masks the credentials in logs.
+      - name: Log in to Certum SimplySign (Windows)
+        id: certum
+        if: runner.os == 'Windows' && env.HAS_CERTUM == 'true'
+        uses: jay0lee/certum-cloud-code-sign@a3324503499c49090869856eeeecfe95fb613d87
+        with:
+          username: ${{ secrets.CERTUM_USERNAME }}
+          totp_secret: ${{ secrets.CERTUM_TOTP_SECRET }}
+
+      - name: Sign the exe (Windows)
+        if: runner.os == 'Windows' && env.HAS_CERTUM == 'true'
+        shell: pwsh
+        run: |
+          & "${{ steps.certum.outputs.signtool-path }}" sign /sha1 ${{ steps.certum.outputs.cert-thumbprint }} `
+            /tr http://time.certum.pl /td SHA256 /fd SHA256 /d "FileBridge" /du "https://datalore.eu" /v dist/FileBridge.exe
+          & "${{ steps.certum.outputs.signtool-path }}" verify /pa /v dist/FileBridge.exe
+
+      - name: Close the Certum session (Windows)
+        if: always() && runner.os == 'Windows' && env.HAS_CERTUM == 'true'
+        uses: jay0lee/certum-cloud-code-sign/teardown@a3324503499c49090869856eeeecfe95fb613d87
+
+      # ---------------------------------------------------------------- Linux
       - name: Package (Linux)
         if: runner.os == 'Linux'
         run: |
@@ -58,12 +143,41 @@ jobs:
             dist/*.dmg
             dist/*.exe
             dist/*.tar.gz
+          if-no-files-found: error
 
-      - name: Attach to release
-        if: startsWith(github.ref, 'refs/tags/')
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    env:
+      HAS_GPG: ${{ secrets.GPG_PRIVATE_KEY != '' }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Checksums
+        working-directory: dist
+        run: |
+          sha256sum FileBridge-macOS.dmg FileBridge.exe FileBridge-Linux.tar.gz > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: GPG signatures
+        if: env.HAS_GPG == 'true'
+        working-directory: dist
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+        run: |
+          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+          for f in SHA256SUMS.txt FileBridge-Linux.tar.gz; do
+            gpg --batch --yes --pinentry-mode loopback --armor --detach-sign "$f"
+          done
+          gpg --verify SHA256SUMS.txt.asc SHA256SUMS.txt
+
+      - name: Publish the release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            dist/*.dmg
-            dist/*.exe
-            dist/*.tar.gz
+          files: dist/*

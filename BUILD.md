@@ -28,6 +28,50 @@ The app is in `dist/FileBridge.app` and the disk image in `dist/FileBridge-macOS
 3. After ~10 minutes the downloads appear under the workflow run (Artifacts). For a tag they also
    appear as a GitHub Release.
 
+## Signing
+
+The GitHub build signs everything by itself **as soon as the secrets below exist** (repository
+**Settings → Secrets and variables → Actions → New repository secret**). Until then it builds
+unsigned, as before. Never paste these values anywhere else.
+
+### Windows – Certum Standard Code Signing in the Cloud (SimplySign)
+
+| Secret | Value |
+|---|---|
+| `CERTUM_USERNAME` | the e-mail address you log in to SimplySign with |
+| `CERTUM_TOTP_SECRET` | the TOTP secret of your SimplySign account (Base32). You get it when you set up SimplySign: it is the `secret=` part of the QR code / `otpauth://` link. Keep it as safe as a password. |
+
+The exe is signed with SHA-256 and a Certum timestamp, and then verified. The signing step uses
+`jay0lee/certum-cloud-code-sign`, pinned to a reviewed commit (it only downloads SimplySign
+Desktop from files.certum.eu and masks the credentials). Review the code again before changing
+that commit.
+
+### macOS – Apple Developer ID + notarization
+
+| Secret | Value |
+|---|---|
+| `MACOS_CERTIFICATE_P12` | your **Developer ID Application** certificate, exported from Keychain Access as `.p12`, then base64: `base64 -i cert.p12 \| pbcopy` |
+| `MACOS_CERTIFICATE_PASSWORD` | the password you gave the `.p12` export |
+| `MACOS_SIGNING_IDENTITY` | the certificate's name, e.g. `Developer ID Application: Your Name (TEAMID)` (shown by `security find-identity -v -p codesigning`) |
+| `APPLE_ID` | your Apple ID e-mail |
+| `APPLE_TEAM_ID` | your 10-character Team ID (developer.apple.com → Membership) |
+| `APPLE_APP_PASSWORD` | an app-specific password from appleid.apple.com → Sign-In and Security |
+
+The app is signed with the hardened runtime (`build/entitlements.plist`), notarized and stapled;
+the `.dmg` is signed, notarized and stapled too.
+
+### Checksums and GPG (all platforms)
+
+Every release gets `SHA256SUMS.txt`. When `GPG_PRIVATE_KEY` is set, `SHA256SUMS.txt.asc` and
+`FileBridge-Linux.tar.gz.asc` are added: detached signatures with the **DataLore FileBridge
+Releases** key (fingerprint `4A2E 2EFB D80F 3DEA 3E81 9577 A801 DC3B 7A0B 668F`). The public key
+is in `docs/filebridge-release-key.asc`. The private key is only kept by the maintainer and in the
+GitHub secret.
+
+| Secret | Value |
+|---|---|
+| `GPG_PRIVATE_KEY` | the complete contents of the private key file (`-----BEGIN PGP PRIVATE KEY BLOCK-----` …) |
+
 ## First launch warnings (unsigned builds)
 
 - **macOS:** "FileBridge.app Not Opened – Apple could not verify…". Click **Done**, then
