@@ -7,3 +7,9 @@ build/*.html
 build/*.log
 *.dmg
 .DS_Store
+
+# Signing keys – NEVER commit (private key, revocation certificate)
+FileBridge-signing/
+*.PRIVATE.asc
+*.REVOKE.asc
+*.p12
