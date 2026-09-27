@@ -100,8 +100,16 @@ def apply(job, sftp, local_root, remote_root, items):
             job.total += it.get('local_size') or 0
         elif it['action'] == 'download':
             job.total += it.get('remote_size') or 0
-    counts = Counter()
+    # folders first (sequentially), then the files several at a time
     for it in items:
+        if it['action'] == 'upload':
+            p = it['path']
+            if p.startswith('/') or '..' in p.split('/'):
+                raise ValueError(f'Invalid path: {p}')
+            R.makedirs(sftp, posixpath.dirname(posixpath.join(remote_root, p)),
+                       lambda d: transfer.set_dir_perm(job, sftp, d))
+
+    def work(client, it):
         job.check()
         p, action = it['path'], it['action']
         if p.startswith('/') or '..' in p.split('/'):
@@ -109,18 +117,18 @@ def apply(job, sftp, local_root, remote_root, items):
         lp = os.path.join(local_root, *p.split('/'))
         rp = posixpath.join(remote_root, p)
         if action == 'upload':
-            R.makedirs(sftp, posixpath.dirname(rp), lambda d: transfer.set_dir_perm(job, sftp, d))
-            transfer.upload_file(job, sftp, lp, rp, 'overwrite')
+            transfer.upload_file(job, client, lp, rp, 'overwrite')
         elif action == 'download':
             os.makedirs(os.path.dirname(lp), exist_ok=True)
-            transfer.download_file(job, sftp, rp, lp, 'overwrite')
+            transfer.download_file(job, client, rp, lp, 'overwrite')
         elif action == 'delete_remote':
-            sftp.remove(rp)
+            client.remove(rp)
         elif action == 'delete_local':
             localfs.trash(lp)
-        else:
-            continue
-        counts[action] += 1
+        return action
+
+    counts = Counter(transfer.run_parallel(job, sftp, [i for i in items if i['action'] in
+                     ('upload', 'download', 'delete_remote', 'delete_local')], work))
     labels = {'upload': 'uploaded', 'download': 'downloaded',
               'delete_remote': 'deleted on server', 'delete_local': 'moved to Trash'}
     msg = ', '.join(f'{n} {labels[k]}' for k, n in counts.items()) or 'nothing to do'

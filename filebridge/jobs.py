@@ -28,12 +28,16 @@ class Job:
         self.finished = None
         self._cancel = threading.Event()
         self._log = log
+        self._lock = threading.Lock()   # several transfer threads may update progress
+        self.new_client = None          # opens an extra connection (for parallel transfers)
+        self.parallel = 1               # max simultaneous transfers for this job
 
     def log(self, msg, level='info'):
         self._log(msg, level)
 
     def add(self, n):
-        self.done += n
+        with self._lock:
+            self.done += n
 
     def check(self):
         if self._cancel.is_set():

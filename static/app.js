@@ -1136,6 +1136,9 @@ function openSiteManager(focusId) {
               <label>Files <input name="upload_file_mode" class="mono" placeholder="0644"></label>
             </div>
             <p class="muted sm-note">Applies to uploads, drag &amp; drop, sync, deploy and plugins. Leave a field empty to leave that type alone.</p>
+            <div class="sm-group">Simultaneous transfers</div>
+            <label class="check">Send up to <input name="max_connections" class="mono" style="width:60px;margin:0 6px" inputmode="numeric"> files at the same time (1–10)</label>
+            <p class="muted sm-note">More is faster with many small files, especially on a slow connection. Lower it if the server complains about too many connections.</p>
           </div>
           <div class="sm-wide" data-proto="ftp">
             <div class="sm-group">Transfer mode</div>
@@ -1174,6 +1177,7 @@ function openSiteManager(focusId) {
     s.upload_perms = E('upload_perms').checked;
     s.upload_dir_mode = E('upload_dir_mode').value.trim();
     s.upload_file_mode = E('upload_file_mode').value.trim();
+    s.max_connections = E('max_connections').value.trim() || '3';
     const cs = E('cs_mode').value || 'auto';
     s.charset = cs === 'custom' ? (E('charset_custom').value.trim() || 'auto') : cs;
     const sec = secrets[s.id] ||= {};
@@ -1215,6 +1219,7 @@ function openSiteManager(focusId) {
     E('upload_perms').checked = !!s.upload_perms;
     E('upload_dir_mode').value = s.upload_dir_mode ?? '0755';
     E('upload_file_mode').value = s.upload_file_mode ?? '0644';
+    E('max_connections').value = s.max_connections ?? 3;
     const cs = s.charset || 'auto';
     E('cs_mode').value = ['auto', 'utf-8'].includes(cs) ? cs : 'custom';
     E('charset_custom').value = ['auto', 'utf-8'].includes(cs) ? '' : cs;

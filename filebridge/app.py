@@ -61,6 +61,16 @@ class App:
                     'color': s.get('color') or '', 'can_exec': r._can_exec}
         return {'connected': False}
 
+    def _max_connections(self, site):
+        try:
+            site = self.sites.get(site['id'])
+        except ApiError:
+            pass
+        try:
+            return max(1, min(10, int(site.get('max_connections') or 3)))
+        except (TypeError, ValueError):
+            return 3
+
     def _upload_perms(self, site):
         """(folder_mode, file_mode) to set after uploading, from the site's current settings."""
         try:
@@ -80,6 +90,8 @@ class App:
 
             def run(job):
                 job.upload_perms = self._upload_perms(r.site)
+                job.new_client = r.new_sftp            # extra connections for parallel transfers
+                job.parallel = self._max_connections(r.site)
                 sftp = r.new_sftp()
                 try:
                     return fn(job, sftp)

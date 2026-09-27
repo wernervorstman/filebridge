@@ -186,7 +186,7 @@ class FtpFile:
     @_ftp_errors
     def _start(self):
         ftp = self.client.ftp
-        ftp.voidcmd('TYPE I')  # listings switch the connection to ASCII; transfers must be binary
+        self.client.binary()  # listings switch the connection to ASCII; transfers must be binary
         if self.writing:
             cmd = 'APPE' if (self.offset or self.append) else 'STOR'
             self.conn = ftp.transfercmd(f'{cmd} {self.path}')
@@ -291,7 +291,14 @@ class FtpClient:
             except ftplib.Error:
                 pass
         ftp.voidcmd('TYPE I')
+        self._binary = True
         self.home = ftp.pwd()
+
+    def binary(self):
+        """Switch to binary mode – only when needed, it costs a round trip to the server."""
+        if not getattr(self, '_binary', False):
+            self.ftp.voidcmd('TYPE I')
+            self._binary = True
 
     def _feat(self):
         try:
@@ -313,12 +320,14 @@ class FtpClient:
         path = self.normalize(path)
         out = []
         if 'MLST' in self.features:
+            self._binary = False  # mlsd/retrlines switch the connection to TYPE A
             for name, facts in self.ftp.mlsd(path, ['type', 'size', 'modify', 'unix.mode']):
                 if facts.get('type', '').lower() in ('cdir', 'pdir') or name in ('.', '..'):
                     continue
                 out.append(_attr_from_facts(name, facts))
             return out
         lines = []
+        self._binary = False
         self.ftp.cwd(path)
         try:
             self.ftp.retrlines('LIST -a', lines.append)
@@ -355,7 +364,7 @@ class FtpClient:
             return a
         except ftplib.error_perm:
             pass
-        self.ftp.voidcmd('TYPE I')  # SIZE is refused in ASCII mode
+        self.binary()  # SIZE is refused in ASCII mode
         size = self.ftp.size(path)
         if size is None:
             raise OSError(f'Not found: {path}')

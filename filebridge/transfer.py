@@ -1,7 +1,15 @@
-"""Uploads and downloads with progress, cancel, skip and resume."""
+"""Uploads and downloads with progress, cancel, skip and resume.
+
+Speed: on a connection with a lot of latency every command to the server costs a
+round trip, so this module avoids them where it can (one listing per folder
+instead of a check per file, no check at all when overwriting) and sends several
+files at the same time over separate connections (job.parallel).
+"""
 import os
 import posixpath
+import queue
 import stat
+import threading
 
 from . import remote as R
 
@@ -13,6 +21,7 @@ CHUNK = 256 * 1024
 # resume      – continue a partial transfer
 POLICIES = ('overwrite', 'newer', 'skip_same', 'skip_exists', 'resume')
 MTIME_SLACK = 2  # seconds
+UNKNOWN = object()  # "we haven't looked whether the destination exists"
 
 
 def _skip(policy, src_size, src_mtime, dst_size, dst_mtime):
@@ -59,20 +68,26 @@ def set_file_perm(job, sftp, path):
     _set_perm(job, sftp, path, 1)
 
 
-def upload_file(job, sftp, local, remote_path, policy='overwrite'):
-    result = _upload_file(job, sftp, local, remote_path, policy)
+def upload_file(job, sftp, local, remote_path, policy='overwrite', existing=UNKNOWN):
+    """existing: the remote file's attributes if already known (None = it doesn't exist)."""
+    result = _upload_file(job, sftp, local, remote_path, policy, existing)
     if result != 'skipped':  # skipped files are left exactly as they are
         set_file_perm(job, sftp, remote_path)
     return result
 
 
-def _upload_file(job, sftp, local, remote_path, policy):
+def _upload_file(job, sftp, local, remote_path, policy, existing=UNKNOWN):
     size = os.path.getsize(local)
     job.current = os.path.basename(local)
-    try:
-        rst = sftp.stat(remote_path)
-    except IOError:
-        rst = None
+    if policy == 'overwrite':
+        rst = None  # replacing anyway: no need to ask the server first
+    elif existing is not UNKNOWN:
+        rst = existing
+    else:
+        try:
+            rst = sftp.stat(remote_path)
+        except IOError:
+            rst = None
     offset = 0
     if rst is not None:
         if _skip(policy, size, os.path.getmtime(local), rst.st_size, rst.st_mtime):
@@ -96,8 +111,10 @@ def _upload_file(job, sftp, local, remote_path, policy):
     return 'resumed' if offset else 'uploaded'
 
 
-def download_file(job, sftp, remote_path, local, policy='overwrite'):
-    rst = sftp.stat(remote_path)
+def download_file(job, sftp, remote_path, local, policy='overwrite', rst=None):
+    """rst: the remote file's attributes if already known from a listing."""
+    if rst is None or not stat.S_ISREG(getattr(rst, 'st_mode', 0) or 0):
+        rst = sftp.stat(remote_path)
     size = rst.st_size or 0
     job.current = posixpath.basename(remote_path)
     offset = 0
@@ -139,63 +156,176 @@ def _local_total(paths):
     return total
 
 
+def run_parallel(job, sftp, tasks, work):
+    """Run work(client, task) for every task, spread over up to job.parallel connections.
+
+    The first connection is the job's own and starts right away; extra ones are opened
+    by job.new_client() at the same time (logging in costs several round trips), and
+    simply join in when ready. Returns the results. The first error stops the others."""
+    tasks = list(tasks)
+    n = max(1, min(getattr(job, 'parallel', 1) or 1, len(tasks)))
+    if n == 1 or not getattr(job, 'new_client', None):
+        return [work(sftp, t) for t in tasks if not job.check()]
+    q = queue.Queue()
+    for t in tasks:
+        q.put(t)
+    results, errors, lock = [], [], threading.Lock()
+
+    def worker(client):
+        own = client is not None
+        try:
+            if not own:
+                try:
+                    client = job.new_client()
+                except Exception as e:  # the server may limit connections – the others carry on
+                    with lock:
+                        if not getattr(job, '_conn_warned', False):
+                            job._conn_warned = True
+                            job.log(f'Could not open an extra connection ({e}); continuing with fewer.', 'warn')
+                    return
+            while not errors:
+                try:
+                    t = q.get_nowait()
+                except queue.Empty:
+                    return
+                r = work(client, t)
+                with lock:
+                    results.append(r)
+        except BaseException as e:  # noqa: BLE001 – includes Cancelled
+            with lock:
+                errors.append(e)
+        finally:
+            if not own and client is not None:
+                try:
+                    client.close()
+                except Exception:
+                    pass
+
+    threads = [threading.Thread(target=worker, args=(sftp,), daemon=True)]
+    threads += [threading.Thread(target=worker, args=(None,), daemon=True) for _ in range(n - 1)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    if errors:
+        raise errors[0]
+    return results
+
+
+class _Listings:
+    """Remote folder listings, fetched once per folder, lazily and thread-safely."""
+
+    def __init__(self):
+        self.data, self.locks, self.lock = {}, {}, threading.Lock()
+
+    def set_empty(self, path):
+        with self.lock:
+            self.data[path] = {}
+
+    def get(self, client, path):
+        with self.lock:
+            if path in self.data:
+                return self.data[path]
+            lk = self.locks.setdefault(path, threading.Lock())
+        with lk:  # only one worker lists a folder; the others wait for its result
+            with self.lock:
+                if path in self.data:
+                    return self.data[path]
+            listing = _listing(client, path)
+            with self.lock:
+                self.data[path] = listing
+            return listing
+
+
+def _count(results):
+    counts = {}
+    for r in results:
+        counts[r] = counts.get(r, 0) + 1
+    return counts
+
+
+def _listing(sftp, path):
+    """{name: attrs} of a remote folder (one round trip), or {} if it doesn't exist."""
+    try:
+        return {a.filename: a for a in sftp.listdir_attr(path)}
+    except IOError:
+        return {}
+
+
 def upload_paths(job, sftp, local_paths, remote_dir, policy='overwrite'):
     job.total += _local_total(local_paths)
-    counts = {}
-    mkdir_perm = lambda d: set_dir_perm(job, sftp, d)
-    R.makedirs(sftp, remote_dir, mkdir_perm)
+    need_listing = policy != 'overwrite'
+    R.makedirs(sftp, remote_dir, lambda d: set_dir_perm(job, sftp, d))
+    listings = _Listings()
+
+    def ensure_dir(rdir):
+        """Create rdir; if it already exists that's fine (1 round trip for a new folder)."""
+        try:
+            sftp.mkdir(rdir)
+            listings.set_empty(rdir)  # brand new: nothing in it, no need to list it later
+        except IOError:
+            if not R.is_dir(sftp, rdir):
+                raise
+        set_dir_perm(job, sftp, rdir)
+
+    # 1) folders first (parents before children), and the list of files to send
+    tasks = []  # (local, remote folder, name)
     for p in local_paths:
         job.check()
         name = os.path.basename(p.rstrip(os.sep))
-        target = posixpath.join(remote_dir, name)
         if os.path.isdir(p):
-            R.makedirs(sftp, target)
-            set_dir_perm(job, sftp, target)
+            target = posixpath.join(remote_dir, name)
+            ensure_dir(target)
             for d, dirs, files in os.walk(p):
                 job.check()
                 rel = os.path.relpath(d, p)
                 rdir = target if rel == '.' else posixpath.join(target, *rel.split(os.sep))
                 for sub in dirs:
-                    R.makedirs(sftp, posixpath.join(rdir, sub))
-                    set_dir_perm(job, sftp, posixpath.join(rdir, sub))
-                for f in files:
-                    r = upload_file(job, sftp, os.path.join(d, f), posixpath.join(rdir, f), policy)
-                    counts[r] = counts.get(r, 0) + 1
+                    ensure_dir(posixpath.join(rdir, sub))
+                tasks += [(os.path.join(d, f), rdir, f) for f in files]
         else:
-            r = upload_file(job, sftp, p, target, policy)
-            counts[r] = counts.get(r, 0) + 1
-    return counts
+            tasks.append((p, remote_dir, name))
+
+    # 2) the files, several at a time; folder listings only when the policy needs them
+    def work(client, t):
+        local, rdir, name = t
+        existing = listings.get(client, rdir).get(name) if need_listing else UNKNOWN
+        return upload_file(job, client, local, posixpath.join(rdir, name), policy, existing)
+
+    return _count(run_parallel(job, sftp, tasks, work))
 
 
 def download_paths(job, sftp, remote_paths, local_dir, policy='overwrite'):
-    plan = []  # (remote, local, is_dir)
+    tasks = []  # (remote, local, attrs)
+    dirs = []
     for p in remote_paths:
         name = posixpath.basename(p.rstrip('/'))
         target = os.path.join(local_dir, name)
-        if R.is_dir(sftp, p):
-            plan.append((p, target, True))
+        st = sftp.stat(p)
+        if stat.S_ISDIR(st.st_mode or 0):
+            dirs.append(target)
             base = p.rstrip('/') + '/'
             for full, a in R.walk(sftp, p):
                 job.check()
                 rel = full[len(base):]
-                d = stat.S_ISDIR(a.st_mode or 0)
-                plan.append((full, os.path.join(target, *rel.split('/')), d))
-                if not d:
+                lpath = os.path.join(target, *rel.split('/'))
+                if stat.S_ISDIR(a.st_mode or 0):
+                    dirs.append(lpath)
+                else:
+                    tasks.append((full, lpath, a))
                     job.total += a.st_size or 0
         else:
-            plan.append((p, target, False))
-            job.total += sftp.stat(p).st_size or 0
+            tasks.append((p, target, st))
+            job.total += st.st_size or 0
     os.makedirs(local_dir, exist_ok=True)
-    counts = {}
-    for rpath, lpath, d in plan:
-        job.check()
-        if d:
-            os.makedirs(lpath, exist_ok=True)
-        else:
-            os.makedirs(os.path.dirname(lpath), exist_ok=True)
-            r = download_file(job, sftp, rpath, lpath, policy)
-            counts[r] = counts.get(r, 0) + 1
-    return counts
+    for d in dirs:
+        os.makedirs(d, exist_ok=True)
+
+    def work(client, t):
+        os.makedirs(os.path.dirname(t[1]), exist_ok=True)
+        return download_file(job, client, t[0], t[1], policy, t[2])
+
+    return _count(run_parallel(job, sftp, tasks, work))
 
 
 def summary(counts, direction='upload'):

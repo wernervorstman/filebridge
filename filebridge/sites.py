@@ -15,7 +15,7 @@ except ImportError:  # pragma: no cover
 SERVICE = 'FileBridge'
 FIELDS = ('id', 'name', 'folder', 'protocol', 'host', 'port', 'encryption', 'auth', 'username', 'key_path',
           'color', 'comments', 'local_dir', 'remote_dir', 'transfer_mode', 'charset', 'ftps_insecure',
-          'upload_perms', 'upload_dir_mode', 'upload_file_mode',
+          'upload_perms', 'upload_dir_mode', 'upload_file_mode', 'max_connections',
           'bookmarks', 'deploy', 'has_password', 'has_passphrase')
 PROTOCOLS = ('sftp', 'ftp')
 ENCRYPTIONS = ('auto', 'explicit', 'implicit', 'plain')
@@ -102,6 +102,10 @@ class SiteStore:
         c['charset'] = c['charset'] or 'auto'
         c['ftps_insecure'] = bool(c.get('ftps_insecure'))
         c['upload_perms'] = bool(c.get('upload_perms'))
+        try:
+            c['max_connections'] = max(1, min(10, int(c.get('max_connections') or 3)))
+        except (TypeError, ValueError):
+            raise ApiError(f'Simultaneous transfers for {label} must be a number from 1 to 10')
         for k, what in (('upload_dir_mode', 'folders'), ('upload_file_mode', 'files')):
             v = str(c.get(k) or '').strip()
             if v:
