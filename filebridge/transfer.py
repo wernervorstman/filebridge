@@ -324,10 +324,11 @@ def upload_paths(job, sftp, local_paths, remote_dir, policy='overwrite'):
 
     # 1) folders first (parents before children), and the list of files to send
     tasks = []  # (local, remote folder, name)
+    skip = getattr(job, 'skip_paths', None) or set()  # files the user chose to leave out
     for p in local_paths:
         job.check()
         name = os.path.basename(p.rstrip(os.sep))
-        if _excluded(job, name):
+        if _excluded(job, name) or p in skip:
             job.skipped_filtered += 1
             continue
         if os.path.isdir(p):
@@ -343,7 +344,7 @@ def upload_paths(job, sftp, local_paths, remote_dir, policy='overwrite'):
                 for sub in dirs:
                     ensure_dir(posixpath.join(rdir, sub))
                 for f in files:
-                    if _excluded(job, f):
+                    if _excluded(job, f) or os.path.join(d, f) in skip:
                         job.skipped_filtered += 1
                     else:
                         tasks.append((os.path.join(d, f), rdir, f))

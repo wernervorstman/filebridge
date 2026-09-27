@@ -4,7 +4,7 @@ import posixpath
 import threading
 import time
 
-from . import deploy, extract, filezilla_import, localfs, perms, sync, system, transfer
+from . import __version__, deploy, extract, filezilla_import, localfs, perms, sync, system, transfer, webinfo
 from .editing import EditManager
 from .settings import Settings
 from .common import ApiError
@@ -135,6 +135,7 @@ class App:
                 'platform': {'file_manager': system.file_manager_name(), 'keychain': system.keychain_name(), 'window': system.WINDOW is not None,
                              'sep': os.sep},
                 'plugins': self.plugins.list(), 'status': self._status(), 'settings': self.settings.all(),
+                'version': __version__,
                 'ignore': sync.DEFAULT_IGNORE}
 
     def api_jobs(self, b):
@@ -164,6 +165,28 @@ class App:
         if path and len(path) > 1 and not path.endswith(':\\'):
             path = path.rstrip('/\\')
         return {'path': path or None}
+
+    # --- web: public folders, web addresses, updates ---
+    def api_risk_check(self, b):
+        """Before an upload: is the destination public, and are there risky files (zip, sql, …)?"""
+        r = self.remote
+        site = r.site if r else {}
+        dest = b.get('dest') or ''
+        public = webinfo.is_public(site, dest)
+        risky = webinfo.risky_local([localfs.norm(p) for p in b.get('paths') or []], self.settings.excluded) if public else []
+        return {'public': public, 'url': webinfo.web_url(site, dest), 'risky': risky[:500], 'count': len(risky)}
+
+    def api_open_url(self, b):
+        url = str(b.get('url') or '')
+        if not url.lower().startswith(('http://', 'https://')):
+            raise ApiError('Only web addresses can be opened')
+        import webbrowser
+        webbrowser.open(url)
+
+    def api_update_check(self, b):
+        if not self.settings.get('check_updates') and not b.get('force'):
+            return {'update': None}
+        return {'update': webinfo.check_update(force=bool(b.get('force')))}
 
     # --- View/Edit ---
     def api_edit_open(self, b):
@@ -464,8 +487,10 @@ class App:
         n = len(paths)
         first = os.path.basename(paths[0].rstrip('/')) if n else ''
         what = f'"{first}"' if n == 1 else f'{n} items'
+        skip = {localfs.norm(p) for p in b.get('skip') or []}
         if b['direction'] == 'upload':
             def fn(job, sftp):
+                job.skip_paths = skip
                 c = transfer.upload_paths(job, sftp, [localfs.norm(p) for p in paths], dest, policy)
                 msg = f'Upload finished: {transfer.summary(c, "upload")}.'
                 job.log(msg)

@@ -15,7 +15,7 @@ except ImportError:  # pragma: no cover
 SERVICE = 'FileBridge'
 FIELDS = ('id', 'name', 'folder', 'protocol', 'host', 'port', 'encryption', 'auth', 'username', 'key_path',
           'color', 'comments', 'local_dir', 'remote_dir', 'transfer_mode', 'charset', 'ftps_insecure',
-          'upload_perms', 'upload_dir_mode', 'upload_file_mode', 'max_connections',
+          'upload_perms', 'upload_dir_mode', 'upload_file_mode', 'max_connections', 'web_map',
           'bookmarks', 'deploy', 'has_password', 'has_passphrase')
 PROTOCOLS = ('sftp', 'ftp')
 ENCRYPTIONS = ('auto', 'explicit', 'implicit', 'plain')
@@ -102,6 +102,8 @@ class SiteStore:
         c['charset'] = c['charset'] or 'auto'
         c['ftps_insecure'] = bool(c.get('ftps_insecure'))
         c['upload_perms'] = bool(c.get('upload_perms'))
+        from .webinfo import clean_web_map
+        c['web_map'] = clean_web_map(c.get('web_map') or [])
         try:
             c['max_connections'] = max(1, min(10, int(c.get('max_connections') or 3)))
         except (TypeError, ValueError):

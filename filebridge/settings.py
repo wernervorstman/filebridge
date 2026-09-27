@@ -17,6 +17,8 @@ DEFAULTS = {
     # View/Edit
     'editor': '',                # empty = the system's default text editor
     'edit_auto_upload': False,   # upload edited files without asking
+    # Updates
+    'check_updates': True,       # look on GitHub for a newer FileBridge at startup
 }
 
 

@@ -455,6 +455,7 @@ class Pane {
     const vis = this.visible();
     const cols = 6;
     const om = S.highlight && this.canCompare() ? this.otherMap() : null;
+    const publicHere = this.remote && S.status.connected && isPublicDir(this.path || '');
     const diffCount = { new: 0, changed: 0 };
     let html = this.parentPath ? `<tr data-up="1"><td class="c-chk"></td><td class="c-name">${ICON.up}<span class="nm">..</span></td>${'<td></td>'.repeat(cols - 2)}</tr>` : '';
     for (const e of vis) {
@@ -463,7 +464,7 @@ class Pane {
       if (d) diffCount[d === 'new' ? 'new' : 'changed']++;
       html += `<tr data-name="${esc(e.name)}" class="${s ? 'sel' : ''} ${e.hidden ? 'hidden-file' : ''} ${d ? 'cmp-' + d : ''} ${e.dir ? 'is-dir' : ''}" draggable="true">
         <td class="c-chk"><input type="checkbox" ${s ? 'checked' : ''}></td>
-        <td class="c-name" title="${esc(e.name)}">${e.dir ? ICON.dir : ICON.file}<span class="nm">${esc(e.name)}${e.link ? ' <span class="muted">↪</span>' : ''}</span></td>
+        <td class="c-name" title="${esc(e.name)}">${e.dir ? ICON.dir : ICON.file}<span class="nm">${esc(e.name)}${e.link ? ' <span class="muted">↪</span>' : ''}</span>${publicHere && !e.dir && isRisky(e.name) ? '<span class="warn-pub" title="This file is in a public web folder: anyone who knows the address can download it.">⚠ public</span>' : ''}</td>
         <td class="c-type">${esc(typeLabel(e))}</td>
         <td class="c-size num">${e.dir ? '' : fmtSize(e.size)}</td>
         <td class="c-date">${fmtDate(e.mtime)}</td>
@@ -596,6 +597,9 @@ class Pane {
       { sep: true },
       { label: 'New folder…', action: () => this.mkdir() },
       { label: 'Refresh', action: () => this.refresh() },
+      this.remote && n === 1 && webUrl(sel[0].path) ? { label: 'Open in browser', action: () => api('open_url', { url: webUrl(sel[0].path) + (sel[0].dir ? '/' : '') }).catch(e => toast(e.message, 'error')) } : null,
+      this.remote && n >= 1 && webUrl(sel[0].path) ? { label: n > 1 ? 'Copy URLs' : 'Copy URL', action: () => copyText(sel.map(x => webUrl(x.path) + (x.dir ? '/' : '')).join('\n')).then(ok => toast(ok ? 'Web address copied' : 'Could not copy', ok ? '' : 'error')) } : null,
+      this.remote && n === 1 && !webUrl(sel[0].path) && isPublicDir(sel[0].path) && S.status.site_id !== 'quick' ? { label: 'Open in browser…', hint: 'set web address', action: () => { toast('Set the web address for this folder in Site Manager → Advanced'); openSiteManager(S.status.site_id); } } : null,
       { label: 'Copy path', disabled: !n, action: () => copyText(this.selectedPaths().join('\n')).then(ok => toast(ok ? 'Path copied' : 'Could not copy', ok ? '' : 'error')) },
       !this.remote ? { label: `Show in ${S.platform?.file_manager || 'Finder'}`, action: () => api('reveal', { path: n === 1 ? sel[0].path : this.path }) } : null,
     ];
@@ -902,7 +906,7 @@ async function openExtract(pane) {
       <label>Folders <input id="xDirMode" class="mono" value="${esc(dDir)}"></label>
       <label>Files <input id="xFileMode" class="mono" value="${esc(dFile)}"></label>
     </div>
-    ${fromLocal ? '' : '<label class="check"><input type="checkbox" id="xDel"> Delete the zip from the server afterwards</label>'}
+    ${fromLocal ? '' : `<label class="check"><input type="checkbox" id="xDel" ${isPublicDir(pane.path) ? 'checked' : ''}> Delete the zip from the server afterwards${isPublicDir(pane.path) ? ' <span class="muted">(recommended: this is a public web folder)</span>' : ''}</label>`}
     <div class="perm-sep"></div>
     <div class="row"><label class="field">Unpack
       <select id="xMethod">
@@ -970,12 +974,56 @@ async function openExtract(pane) {
   } catch (e) { toast(e.message, 'error'); }
 }
 
+/* ---------------------------------------------------------------- web: public folders, risky files, URLs */
+const PUBLIC_DIRS = new Set(['public_html', 'www', 'htdocs', 'httpdocs', 'html', 'web', 'wwwroot', 'public']);
+const RISKY_RE = /(\.(zip|tar|tgz|gz|bz2|7z|rar|sql|dump|bak|backup|old|orig|swp|env|pem|key)$)|(^\.env(\..*)?$)/i;
+const isRisky = name => RISKY_RE.test(name);
+const activeSite = () => S.sites.find(s => s.id === S.status.site_id) || null;
+function webUrl(remotePath, site = activeSite()) {
+  let best = null;
+  for (const m of site?.web_map || []) {
+    const d = '/' + m.dir.replace(/^\/+|\/+$/g, '');
+    const dd = d === '/' ? '/' : d;
+    if (remotePath === dd || remotePath.startsWith(dd.replace(/\/$/, '') + '/')) {
+      if (!best || dd.length > best[0].length) best = [dd, m.url.replace(/\/+$/, '')];
+    }
+  }
+  if (!best) return null;
+  const rest = remotePath.slice(best[0].length).replace(/^\/+/, '');
+  return best[1] + '/' + rest.split('/').map(encodeURIComponent).join('/');
+}
+const isPublicDir = remotePath => !!webUrl(remotePath) || remotePath.split('/').some(p => PUBLIC_DIRS.has(p.toLowerCase()));
+
+async function riskDialog(rc, dest) {
+  const list = rc.risky.slice(0, 10).map(x => `<div class="mono">• ${esc(x.name)} <span class="muted">(${fmtSize(x.size)})</span></div>`).join('')
+    + (rc.count > 10 ? `<div class="muted">… and ${rc.count - 10} more</div>` : '');
+  const where = rc.url ? `<br>Anyone could download them from <span class="mono">${esc(rc.url)}</span>` : '';
+  const { value } = await modal({
+    title: 'Public folder',
+    body: `<p style="margin-top:0"><b>${esc(dest)}</b> is a public web folder. You are uploading ${rc.count} file(s) that usually shouldn't be public (archives, database dumps, backups, keys):${where}</p>${list}`,
+    buttons: [{ label: 'Cancel', value: null }, { label: 'Upload anyway', value: 'all', danger: true },
+              { label: 'Skip these files', value: 'skip', primary: true }],
+  });
+  return value;
+}
+
 /* ---------------------------------------------------------------- transfers & jobs */
 async function startTransfer(direction, paths, dest, onDone) {
   if (!S.status.connected) return toast('Connect to a server first', 'error');
   if (!dest) return toast('No destination folder', 'error');
+  let skip = [];
+  if (direction === 'upload') {
+    try {
+      const rc = await api('risk_check', { paths, dest });
+      if (rc.count) {
+        const choice = await riskDialog(rc, dest);
+        if (!choice) return;
+        if (choice === 'skip') skip = rc.risky.map(x => x.path);
+      }
+    } catch { /* the check is a convenience; never block an upload */ }
+  }
   try {
-    const r = await api('transfer', { direction, paths, dest, policy: $('#policy').value });
+    const r = await api('transfer', { direction, paths, dest, policy: $('#policy').value, skip });
     watchJob(r.job_id, onDone || (job => { if (job.status === 'done' && job.result?.message) toast(job.result.message, 'ok'); }));
   } catch (e) { toast(e.message, 'error'); }
 }
@@ -1367,7 +1415,10 @@ async function openSettings() {
     <div class="sm-group">View / Edit</div>
     <label class="field">Editor for “View/Edit” (empty = your system's text editor)
       <span class="with-btn"><input id="stEditor" value="${esc(st.editor)}" placeholder="e.g. /Applications/Visual Studio Code.app"><button type="button" data-pick="file">Browse…</button></span></label>
-    <label class="check"><input type="checkbox" id="stAuto" ${st.edit_auto_upload ? 'checked' : ''}> Upload edited files automatically, without asking</label>`;
+    <label class="check"><input type="checkbox" id="stAuto" ${st.edit_auto_upload ? 'checked' : ''}> Upload edited files automatically, without asking</label>
+    <div class="perm-sep"></div>
+    <div class="sm-group">Updates</div>
+    <label class="check"><input type="checkbox" id="stUpd" ${st.check_updates ? 'checked' : ''}> Check for a new FileBridge version at startup</label>`;
   const { value, el } = await modal({
     title: 'Settings', body, size: 'mid',
     buttons: [{ label: 'Cancel', value: null }, { label: 'Save', value: 'ok', primary: true }],
@@ -1378,7 +1429,7 @@ async function openSettings() {
       filters_enabled: $('#stFilt', el).checked, filters: $('#stFilters', el).value.split('\n'),
       filters_hide: $('#stHide', el).checked, filters_transfer: $('#stNoTx', el).checked,
       limit_up: $('#stUp', el).value, limit_down: $('#stDown', el).value,
-      editor: $('#stEditor', el).value, edit_auto_upload: $('#stAuto', el).checked,
+      editor: $('#stEditor', el).value, edit_auto_upload: $('#stAuto', el).checked, check_updates: $('#stUpd', el).checked,
     } });
     S.settings = r.settings;
     toast('Settings saved', 'ok');
@@ -1486,6 +1537,8 @@ function openSiteManager(focusId) {
         <div class="sm-page" data-page="advanced">
           <label>Default local directory:</label><div class="with-btn"><input name="local_dir" placeholder="~/Projects/site"><button type="button" data-pick="folder">Browse…</button></div>
           <label>Default remote directory:</label><div class="with-btn"><input name="remote_dir" placeholder="/public_html"><button type="button" data-current="remote">Use current</button></div>
+          <label class="sm-top">Web addresses:</label><textarea name="web_map" rows="3" class="mono" spellcheck="false" placeholder="/public_html = https://example.com"></textarea>
+          <div></div><p class="muted sm-note">One per line: server folder = web address. Used for “Open in browser” / “Copy URL”, and to warn when archives or backups end up in a public folder. Subfolders follow automatically; add a line for a subfolder that has its own address.</p>
           <div></div><p class="muted sm-note">These folders open automatically when you connect to this site.</p>
         </div>
         <div class="sm-page" data-page="transfer">
@@ -1530,6 +1583,7 @@ function openSiteManager(focusId) {
   function readForm() {
     const s = sel?.type === 'site' && siteById(sel.id);
     if (!s) return;
+    s.web_map = E('web_map').value;
     for (const k of ['protocol', 'host', 'port', 'encryption', 'auth', 'username', 'key_path', 'color', 'comments', 'local_dir', 'remote_dir']) {
       s[k] = k === 'comments' ? E(k).value : E(k).value.trim();
     }
@@ -1566,6 +1620,7 @@ function openSiteManager(focusId) {
     E('protocol').value = s.protocol || 'sftp';
     setLogonOptions(E('protocol').value);
     for (const k of ['host', 'username', 'key_path', 'comments', 'local_dir', 'remote_dir']) E(k).value = s[k] ?? '';
+    E('web_map').value = Array.isArray(s.web_map) ? s.web_map.map(m => `${m.dir} = ${m.url}`).join('\n') : (s.web_map || '');
     E('port').value = s.port && +s.port !== defaultPort(s) ? s.port : '';
     E('encryption').value = s.encryption || 'auto';
     E('auth').value = LOGONS[E('protocol').value].includes(s.auth) ? s.auth : 'password';
@@ -2105,6 +2160,15 @@ try { $('#year').textContent = new Date().getFullYear(); } catch { /* ignore */ 
   S.folders = r.folders || [];
   S.platform = r.platform || {};
   S.settings = r.settings || {};
+  $('#appVersion').textContent = 'v' + r.version;
+  api('update_check').then(u => {
+    const up = u.update;
+    if (!up?.newer) return;
+    const a = $('#updateLink');
+    a.hidden = false;
+    a.textContent = `Update available: v${up.latest}`;
+    a.onclick = e => { e.preventDefault(); api('open_url', { url: up.url }); };
+  }).catch(() => {});
   document.body.classList.toggle('in-app', !!S.platform.window);
   S.plugins = r.plugins;
   S.home = r.home;
