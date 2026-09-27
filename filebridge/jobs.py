@@ -31,6 +31,10 @@ class Job:
         self._lock = threading.Lock()   # several transfer threads may update progress
         self.new_client = None          # opens an extra connection (for parallel transfers)
         self.parallel = 1               # max simultaneous transfers for this job
+        self.exclude = None             # name -> True when filtered (never transferred)
+        self.skipped_filtered = 0
+        self.failed = []                # files that failed: [{direction, src, dst, error}]
+        self.retry_of = None
 
     def log(self, msg, level='info'):
         self._log(msg, level)
@@ -50,6 +54,7 @@ class Job:
             'id': self.id, 'kind': self.kind, 'title': self.title, 'status': self.status,
             'total': self.total, 'done': self.done, 'current': self.current,
             'error': self.error, 'result': self.result, 'refresh': self.refresh, 'unit': self.unit,
+            'failed': len(self.failed),
             'speed': (self.done / elapsed) if elapsed > 0.5 else 0,
         }
 
@@ -81,8 +86,14 @@ class JobManager:
             result = fn(job)
             if result is not None:
                 job.result = result
-            job.status = 'done'
-            self._log(f'Finished: {job.title}', 'ok')
+            if job.failed:
+                n = len(job.failed)
+                job.status = 'error'
+                job.error = f'{n} file(s) failed – the others were transferred. Click Retry to try the failed ones again.'
+                self._log(f'Finished with errors: {job.title} – {n} file(s) failed', 'error')
+            else:
+                job.status = 'done'
+                self._log(f'Finished: {job.title}', 'ok')
         except Cancelled:
             job.status = 'cancelled'
             self._log(f'Cancelled: {job.title}', 'warn')

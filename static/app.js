@@ -56,6 +56,7 @@ const BTN_ICON = {
   up: SVG('<path d="M12 19V5M6 11l6-6 6 6"/>'),
   refresh: SVG('<path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/>'),
   folder: SVG('<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>'),
+  tree: SVG('<path d="M4 4v14a2 2 0 0 0 2 2h3M4 9h5M4 14h5"/><rect x="12" y="6" width="8" height="5" rx="1"/><rect x="12" y="15" width="8" height="5" rx="1"/>'),
   bookmark: SVG('<path d="M6 4h12v16l-6-4-6 4z"/>'),
 };
 const ICON = {
@@ -194,6 +195,7 @@ class Pane {
         ${r ? '' : `<button class="icon" data-a="pick" title="Choose a folder on this computer" aria-label="Choose folder">${BTN_ICON.folder}</button>`}
         <button class="icon" data-a="refresh" title="Refresh – reload this folder" aria-label="Refresh">${BTN_ICON.refresh}</button>
         <button class="icon" data-a="bookmarks" title="Bookmarks" aria-label="Bookmarks">${BTN_ICON.bookmark}</button>
+        <button class="icon" data-a="tree" title="Show / hide the folder tree" aria-label="Folder tree">${BTN_ICON.tree}</button>
       </div>
       <div class="toolbar">
         <button data-a="transfer" class="primary" title="${r ? 'Download selected to the local folder' : 'Upload selected to the server folder'}">${r ? '← Download' : 'Upload →'}</button>
@@ -208,6 +210,8 @@ class Pane {
         <input class="filter" placeholder="Filter…" spellcheck="false">
         <label class="chk" title="Show hidden files"><input type="checkbox" class="hidden-toggle"> Hidden</label>
       </div>
+      <div class="pbody">
+      <div class="tree" hidden></div>
       <div class="list" tabindex="0">
         <table>
           <thead><tr>
@@ -222,10 +226,17 @@ class Pane {
         </table>
         <div class="empty" hidden></div>
       </div>
+      </div>
       <div class="pane-foot"><span class="count"></span><span class="selinfo"></span><span class="diffinfo"></span></div>`;
 
     this.list = $('.list', this.el);
     this.tbody = $('tbody', this.el);
+    this.treeEl = $('.tree', this.el);
+    this.treeCache = new Map();   // folder path -> [subfolder names]
+    this.treeOpen = new Set();    // folders the user expanded
+    this.showTree = store.get(this.side + '.tree', false);
+    this.treeEl.hidden = !this.showTree;
+    this.treeEl.addEventListener('click', e => this.onTreeClick(e));
     $('.hidden-toggle', this.el).checked = this.showHidden;
 
     this.el.addEventListener('mousedown', () => setActive(this));
@@ -271,7 +282,9 @@ class Pane {
       e.dataTransfer.effectAllowed = 'copyMove';
     });
     this.list.addEventListener('dragover', e => {
-      if (!e.dataTransfer.types.includes('application/x-filebridge')) return;
+      const internal = e.dataTransfer.types.includes('application/x-filebridge');
+      const osFiles = !internal && e.dataTransfer.types.includes('Files');
+      if (!internal && !osFiles) return;
       e.preventDefault();
       $$('tr.drop', this.el).forEach(x => x.classList.remove('drop'));
       const tr = this.dropRow(e);
@@ -285,6 +298,15 @@ class Pane {
       e.preventDefault();
       const tr = this.dropRow(e);
       this.clearDrop();
+      if (!e.dataTransfer.types.includes('application/x-filebridge') && e.dataTransfer.types.includes('Files')) {
+        // Files from Finder / Explorer: the app window passes their full paths to window.fbOsDrop()
+        let dir = this.path;
+        if (tr?.dataset.up) dir = this.parentPath;
+        else if (tr) dir = this.byName(tr.dataset.name).path;
+        S.osDropTarget = { side: this.side, dir };
+        if (!S.platform?.window) toast('Dragging files from Finder or Explorer works in the FileBridge app window');
+        return;
+      }
       let data;
       try { data = JSON.parse(e.dataTransfer.getData('application/x-filebridge')); } catch { return; }
       let target = this.path;
@@ -322,6 +344,7 @@ class Pane {
       const changed = r.path !== this.path;
       this.path = r.path;
       this.entries = r.entries;
+      this.filtered = r.filtered || 0;
       this.localParent = r.parent ?? null;
       if (changed) { this.filter = ''; $('.filter', this.el).value = ''; }
       if (changed || !keepSelection) this.sel = new Set();
@@ -329,12 +352,13 @@ class Pane {
       if (!this.remote) store.set('localPath', this.path);
       this.render();
       if (S.highlight) this.other.render();
+      if (changed && !this._syncing) syncBrowse(this);
     } catch (e) {
       toast(e.message, 'error');
       $('.path', this.el).value = this.path;
     }
   }
-  refresh() { return this.load(this.path, true); }
+  refresh() { this.treeCache.delete(this.path); return this.load(this.path, true); }
 
   visible() {
     let list = this.entries;
@@ -350,6 +374,68 @@ class Pane {
       perms: (a, b) => (a.mode ?? -1) - (b.mode ?? -1) || byName(a, b),
     }[k] || byName;
     return [...list].sort((a, b) => (b.dir - a.dir) || d * cmp(a, b));
+  }
+
+  // --- folder tree ---
+  get sepChar() { return this.remote ? '/' : (S.platform?.sep || '/'); }
+  treeRoot() {
+    const p = this.path || '';
+    if (!this.remote && /^[A-Za-z]:\\/.test(p)) return p.slice(0, 3);  // Windows drive, e.g. C:\
+    return '/';
+  }
+  treeJoin(dir, name) { const sep = this.sepChar; return (dir.endsWith(sep) ? dir : dir + sep) + name; }
+  /** The folders from the root down to the current folder. */
+  treeAncestors() {
+    const root = this.treeRoot(), sep = this.sepChar, out = [root];
+    const rest = (this.path || '').slice(root.length).split(sep).filter(Boolean);
+    let cur = root;
+    for (const part of rest) { cur = this.treeJoin(cur, part); out.push(cur); }
+    return out;
+  }
+  async treeLoad(path) {
+    if (this.treeCache.has(path)) return;
+    this.treeCache.set(path, null);  // loading
+    try {
+      const r = await api('list', { side: this.side, path });
+      this.treeCache.set(path, r.entries.filter(e => e.dir && (this.showHidden || !e.hidden)).map(e => e.name)
+        .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })));
+    } catch { this.treeCache.set(path, []); }
+    this.renderTree();
+  }
+  renderTree() {
+    if (!this.showTree || (this.remote && !S.status.connected)) { this.treeEl.innerHTML = ''; return; }
+    if (this.path) {  // the current folder's subfolders are known already
+      this.treeCache.set(this.path, this.entries.filter(e => e.dir && (this.showHidden || !e.hidden)).map(e => e.name)
+        .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })));
+    }
+    const onPath = new Set(this.treeAncestors());
+    const node = (path, name, depth) => {
+      const open = onPath.has(path) || this.treeOpen.has(path);
+      const kids = this.treeCache.get(path);
+      if (open && kids === undefined) this.treeLoad(path);
+      const cur = path === this.path;
+      let html = `<div class="tnode ${cur ? 'cur' : ''}" data-path="${esc(path)}" style="padding-left:${6 + depth * 14}px">
+        <span class="tcaret" data-toggle="1">${kids && !kids.length ? '' : open ? '▾' : '▸'}</span>${ICON.dir}<span class="tname">${esc(name)}</span></div>`;
+      if (open && kids) for (const k of kids) html += node(this.treeJoin(path, k), k, depth + 1);
+      return html;
+    };
+    const root = this.treeRoot();
+    this.treeEl.innerHTML = node(root, root, 0);
+    this.treeEl.querySelector('.tnode.cur')?.scrollIntoView({ block: 'nearest' });
+  }
+  onTreeClick(e) {
+    const n = e.target.closest('.tnode');
+    if (!n) return;
+    const path = n.dataset.path;
+    if (e.target.closest('[data-toggle]')) {
+      const onPath = new Set(this.treeAncestors());
+      if (this.treeOpen.has(path) || (onPath.has(path) && path !== this.path)) {
+        this.treeOpen.delete(path);
+        if (onPath.has(path)) return this.load(path);  // collapsing a folder on the current path: go there
+      } else this.treeOpen.add(path);
+      return this.renderTree();
+    }
+    this.load(path);
   }
 
   render() {
@@ -392,12 +478,14 @@ class Pane {
     all.indeterminate = !all.checked && vis.some(x => this.sel.has(x.name));
     this.diffCount = om ? diffCount : null;
     this.renderFoot();
+    this.renderTree();
   }
   renderFoot() {
     const vis = this.remote && !S.status.connected ? [] : this.visible();
     const sel = this.selected();
     const files = vis.filter(e => !e.dir).length;
-    $('.count', this.el).textContent = vis.length ? `${vis.length - files} folders, ${files} files` : '';
+    $('.count', this.el).textContent = (vis.length ? `${vis.length - files} folders, ${files} files` : '')
+      + (this.filtered && !(this.remote && !S.status.connected) ? ` · ${this.filtered} filtered` : '');
     const size = sel.reduce((n, e) => n + (e.size || 0), 0);
     $('.selinfo', this.el).textContent = sel.length ? `${sel.length} selected${size ? ' (' + fmtSize(size) + ')' : ''}` : '';
     const dc = this.diffCount;
@@ -470,6 +558,7 @@ class Pane {
       refresh: () => this.refresh(),
       pick: async () => { const p = await pickLocal('folder', { start: this.path, prompt: 'Open folder' }); if (p) this.load(p); },
       bookmarks: () => bookmarksMenu(r.left, r.bottom + 4),
+      tree: () => { this.showTree = !this.showTree; store.set(this.side + '.tree', this.showTree); this.treeEl.hidden = !this.showTree; this.renderTree(); },
       transfer: () => this.transfer(),
       mkdir: () => this.mkdir(),
       rename: () => this.rename(),
@@ -493,6 +582,10 @@ class Pane {
     const items = [
       n === 1 && sel[0].dir ? { label: 'Open', action: () => this.load(sel[0].path) } : null,
       { label: this.remote ? `Download${n > 1 ? ' ' + n + ' items' : ''}` : `Upload${n > 1 ? ' ' + n + ' items' : ''}`, hint: this.remote ? '←' : '→', disabled: !n || !conn, action: () => this.transfer() },
+      n === 1 && !sel[0].dir && this.remote
+        ? { label: 'View/Edit', hint: 'opens in your editor', disabled: !conn, action: () => editRemote(sel[0]) } : null,
+      n === 1 && !sel[0].dir && !this.remote ? { label: 'Open', action: () => api('open_local', { path: sel[0].path }).catch(e => toast(e.message, 'error')) } : null,
+      n === 1 && !sel[0].dir && !this.remote ? { label: 'Edit', hint: 'in your editor', action: () => api('open_local', { path: sel[0].path, edit: true }).catch(e => toast(e.message, 'error')) } : null,
       n === 1 && !sel[0].dir && sel[0].ext === 'zip'
         ? { label: this.remote ? 'Extract here…' : 'Upload & extract…', disabled: !conn, action: () => openExtract(this) } : null,
       { sep: true },
@@ -901,6 +994,7 @@ async function poll() {
     active = r.jobs.some(j => j.status === 'running' || j.status === 'queued');
     renderJobs(r.jobs);
     renderLog(r.log);
+    renderEdits(r.edits || []);
     applyStatus(r.status);
     for (const j of r.jobs) {
       if (S.callbacks[j.id] && ['done', 'error', 'cancelled'].includes(j.status)) {
@@ -936,13 +1030,18 @@ function renderJobs(jobs) {
         ${j.error ? `<div class="err">${esc(j.error)}</div>` : `<div class="sub">${esc(label)}</div>`}</div>
       <div class="bar"><i style="width:${pct}%"></i></div>
       <div class="sub">${sizeTxt}${speed}</div>
-      <div>${['queued', 'running'].includes(j.status) ? `<button class="small" data-cancel="${j.id}">Cancel</button>` : ''}</div>
+      <div>${['queued', 'running'].includes(j.status) ? `<button class="small" data-cancel="${j.id}">Cancel</button>`
+        : j.failed ? `<button class="small" data-retry="${j.id}">Retry ${j.failed}</button>` : ''}</div>
     </div>`;
   }).join('');
 }
 $('#queue').addEventListener('click', e => {
   const id = e.target.dataset.cancel;
   if (id) api('job_cancel', { id }).then(kickPoll);
+  const retry = e.target.dataset.retry;
+  if (retry) api('job_retry', { id: retry }).then(r => watchJob(r.job_id, job => {
+    if (job.status === 'done') toast(job.result?.message || 'Retry finished', 'ok');
+  })).catch(err => toast(err.message, 'error'));
 });
 $('#btnClearJobs').onclick = () => api('jobs_clear').then(kickPoll);
 
@@ -960,6 +1059,7 @@ $$('.tab').forEach(t => t.onclick = () => {
   $$('.tab').forEach(x => x.classList.toggle('active', x === t));
   $('#queue').hidden = t.dataset.tab !== 'queue';
   $('#log').hidden = t.dataset.tab !== 'log';
+  $('#edits').hidden = t.dataset.tab !== 'edits';
   if (t.dataset.tab === 'log') $('#log').scrollTop = 1e9;
 });
 $('#policy').value = store.get('policy', 'skip_exists');
@@ -969,15 +1069,69 @@ $('#policy').onchange = e => store.set('policy', e.target.value);
 /* ---------------------------------------------------------------- connection */
 function applyStatus(st) {
   const was = S.status.connected;
+  const prevTab = S.status.tab;
   S.status = st;
   const el = $('#connStatus');
   el.className = 'status' + (st.connected ? ' on' : '');
   el.textContent = st.connected ? st.label : 'Not connected';
-  $('#btnConnect').hidden = st.connected;
+  $('#btnConnect').textContent = st.connected ? 'Connect ＋' : 'Connect';
+  $('#btnConnect').title = st.connected ? 'Connect to the selected site in a new tab' : 'Connect to the selected site';
   $('#btnDisconnect').hidden = !st.connected;
   document.body.dataset.siteColor = st.connected ? (st.color || '') : '';
-  if (was && !st.connected) { PR.entries = []; PR.render(); }
+  renderTabs(st);
+  if (was && !st.connected) { PR.entries = []; PR.path = ''; PR.render(); }
+  else if (st.connected && prevTab && st.tab !== prevTab && !S.switching) showTab(st.tab);  // e.g. a tab was closed
 }
+
+/* ---------------------------------------------------------------- connection tabs */
+S.tabState = {};   // tab id -> {remote, local}
+function renderTabs(st) {
+  const bar = $('#connTabs');
+  const key = JSON.stringify([st.tab, (st.tabs || []).map(t => [t.id, t.name, t.color])]);
+  if (bar.dataset.key === key) return;
+  bar.dataset.key = key;
+  const tabs = st.tabs || [];
+  bar.hidden = !tabs.length;
+  bar.innerHTML = tabs.map(t => `<button class="ctab ${t.id === st.tab ? 'active' : ''}" data-tab="${t.id}" title="${esc(t.label)}">
+      ${t.color ? `<i class="cdot" style="background:var(--c-${t.color})"></i>` : ''}<span>${esc(t.name)}</span>
+      <span class="cx" data-close="${t.id}" title="Disconnect and close this tab">×</span></button>`).join('')
+    + `<button class="ctab cnew" data-new="1" title="Open another site in a new tab">＋</button>`;
+}
+function saveTabState() {
+  if (S.status.connected && S.status.tab) S.tabState[S.status.tab] = { remote: PR.path, local: PL.path };
+}
+async function showTab(tab) {
+  const saved = S.tabState[tab] || {};
+  if (S.syncBrowse) setSync(false);
+  await PR.load(saved.remote || '');
+  if (saved.local && saved.local !== PL.path) await PL.load(saved.local);
+}
+async function switchTab(tab) {
+  if (tab === S.status.tab) return;
+  saveTabState();
+  S.switching = true;
+  try {
+    applyStatus((await api('tab_switch', { tab })).status);
+    await showTab(tab);
+  } catch (e) { toast(e.message, 'error'); } finally { S.switching = false; }
+}
+async function closeTab(tab) {
+  saveTabState();
+  S.switching = true;
+  try {
+    const st = (await api('disconnect', { tab })).status;
+    delete S.tabState[tab];
+    applyStatus(st);
+    if (st.connected) await showTab(st.tab);
+  } catch (e) { toast(e.message, 'error'); } finally { S.switching = false; }
+}
+$('#connTabs').addEventListener('click', e => {
+  const close = e.target.closest('[data-close]');
+  if (close) { e.stopPropagation(); return closeTab(close.dataset.close); }
+  if (e.target.closest('[data-new]')) return openSiteManager();
+  const t = e.target.closest('[data-tab]');
+  if (t) switchTab(t.dataset.tab);
+});
 
 function renderSites(selectId) {
   const sel = $('#siteSelect');
@@ -1000,14 +1154,19 @@ async function connect(extra = {}) {
   el.textContent = `Connecting to ${site.host}…`;
   $('#btnConnect').disabled = true;
   try {
+    saveTabState();
     const r = await api('connect', { site_id: site.id, ...extra });
     S.sites = r.sites;
+    S.switching = true;
     applyStatus(r.status);
+    S.switching = false;
+    S.tabState[r.status.tab] = { remote: r.remote_path };
+    if (S.syncBrowse) setSync(false);
     await PR.load(r.remote_path);
     if (site.local_dir) PL.load(site.local_dir);
     toast(`Connected to ${site.host}`, 'ok');
   } catch (e) {
-    applyStatus({ connected: false });
+    applyStatus(S.status); kickPoll();
     if (e.message.startsWith('NEED_PASSWORD')) {
       const failed = e.message.includes(':');
       const canSave = site.auth !== 'ask';
@@ -1027,7 +1186,7 @@ async function connect(extra = {}) {
   }
 }
 $('#btnConnect').onclick = () => connect();
-$('#btnDisconnect').onclick = async () => { applyStatus((await api('disconnect')).status); };
+$('#btnDisconnect').onclick = () => S.status.tab && closeTab(S.status.tab);
 
 /* ---------------------------------------------------------------- native pickers */
 /** Opens the native file/folder dialog (via the local server). Returns a path, or null if cancelled. */
@@ -1058,6 +1217,208 @@ document.addEventListener('click', async e => {
   }
   input.dispatchEvent(new Event('change', { bubbles: true }));
 });
+
+/* ---------------------------------------------------------------- View/Edit + drop from Finder */
+async function editRemote(ent) {
+  try {
+    await api('edit_open', { path: ent.path });
+    toast(`Opened ${ent.name} in your editor – save it there to upload your changes`, 'ok');
+    kickPoll();
+  } catch (e) { toast(e.message, 'error'); }
+}
+S.editPrompted = new Set();
+function renderEdits(edits) {
+  const tab = $('#editTab');
+  tab.hidden = !edits.length;
+  $('#editCount').textContent = edits.length;
+  if (!edits.length && !$('#edits').hidden) $$('.tab')[0].click();
+  const label = { watching: 'Watching for changes', changed: 'Changed – not uploaded yet', uploading: 'Uploading…' };
+  const html = edits.map(x => `<div class="job ${x.state === 'changed' ? 'error' : x.state === 'uploading' ? 'running' : 'done'}">
+      <span class="dot"></span>
+      <div style="min-width:0"><div class="title">${esc(x.name)} <span class="muted">· ${esc(x.site)}</span></div>
+        <div class="sub">${esc(x.remote_path)}</div>${x.error ? `<div class="err">${esc(x.error)}</div>` : ''}</div>
+      <div class="sub">${label[x.state] || x.state}</div><div></div>
+      <div class="edit-actions">${x.state === 'changed' ? `<button class="small primary" data-eup="${x.id}">Upload</button>` : ''}<button class="small" data-estop="${x.id}" title="Stop watching this file">Close</button></div>
+    </div>`).join('');
+  const box = $('#edits');
+  if (box.dataset.html !== html) { box.innerHTML = html || '<div class="empty">No files being edited.</div>'; box.dataset.html = html; }
+  for (const x of edits) {
+    if (x.state !== 'changed') { S.editPrompted.delete(x.id); continue; }
+    if (S.editPrompted.has(x.id) || x.error) continue;
+    S.editPrompted.add(x.id);
+    modal({
+      title: 'File changed',
+      body: `<p><b>${esc(x.name)}</b> was changed in your editor.<br>Upload it to <span class="mono">${esc(x.site)}:${esc(x.remote_path)}</span>?</p>
+             <label class="check"><input type="checkbox" id="edAlways"> Always upload edited files without asking</label>`,
+      buttons: [{ label: 'Not now', value: null }, { label: 'Upload', value: 'ok', primary: true }],
+    }).then(async ({ value, el }) => {
+      if ($('#edAlways', el).checked) {
+        try { S.settings = (await api('settings_save', { settings: { edit_auto_upload: true } })).settings; } catch { /* ignore */ }
+      }
+      if (value) uploadEdit(x.id); else api('edit_discard', { id: x.id }).then(kickPoll);
+    });
+  }
+}
+async function uploadEdit(id) {
+  try {
+    const r = await api('edit_upload', { id });
+    watchJob(r.job_id, job => { if (job.status === 'done') toast(job.result?.message || 'Uploaded', 'ok'); });
+  } catch (e) { toast(e.message, 'error'); }
+}
+$('#edits').addEventListener('click', e => {
+  if (e.target.dataset.eup) uploadEdit(e.target.dataset.eup);
+  if (e.target.dataset.estop) api('edit_stop', { id: e.target.dataset.estop }).then(kickPoll);
+});
+// Called by the app window (filebridge_app.py) with the full paths of files dropped from Finder / Explorer
+window.fbOsDrop = paths => {
+  const t = S.osDropTarget;
+  S.osDropTarget = null;
+  if (!paths?.length || !t) return;
+  if (t.side !== 'remote') return toast('Drop files on the server side to upload them');
+  startTransfer('upload', paths, t.dir);
+};
+
+/* ---------------------------------------------------------------- synchronized browsing */
+function relPath(base, p, side) {
+  const sep = side === 'local' ? (S.platform?.sep || '/') : '/';
+  const strip = x => (x.length > 1 && x.endsWith(sep) && !/^[A-Za-z]:\\$/.test(x)) ? x.slice(0, -1) : x;
+  base = strip(base); p = strip(p);
+  if (p === base) return '';
+  const pre = base.endsWith(sep) ? base : base + sep;
+  return p.startsWith(pre) ? p.slice(pre.length).split(sep).join('/') : null;
+}
+function joinRel(base, rel, side) {
+  if (!rel) return base;
+  const sep = side === 'local' ? (S.platform?.sep || '/') : '/';
+  return (base.endsWith(sep) ? base : base + sep) + rel.split('/').join(sep);
+}
+function setSync(on) {
+  if (on && !S.status.connected) { toast('Connect to a server first'); on = false; }
+  S.syncBrowse = on ? { local: PL.path, remote: PR.path } : null;
+  $('#btnSync').classList.toggle('on', !!on);
+  if (on) toast(`Synchronized browsing: ${PL.path}  ⇄  ${PR.path}`, 'ok');
+}
+async function syncBrowse(pane) {
+  if (!S.syncBrowse || !S.status.connected) return;
+  const other = pane.other;
+  const rel = relPath(S.syncBrowse[pane.side], pane.path, pane.side);
+  if (rel === null) { setSync(false); toast('Synchronized browsing turned off – you left the synced folders'); return; }
+  const target = joinRel(S.syncBrowse[other.side], rel, other.side);
+  other._syncing = true;
+  try {
+    const r = await api('list', { side: other.side, path: target });
+    other.path = r.path; other.entries = r.entries; other.filtered = r.filtered || 0;
+    other.localParent = r.parent ?? null; other.sel = new Set(); other.filter = '';
+    if (!other.remote) store.set('localPath', other.path);
+    other.render();
+  } catch (e) {
+    toast(`“${rel || '/'}” does not exist ${other.remote ? 'on the server' : 'locally'} – synchronized browsing turned off`, 'error');
+    setSync(false);
+  } finally { other._syncing = false; }
+}
+$('#btnSync').onclick = () => setSync(!S.syncBrowse);
+
+/* ---------------------------------------------------------------- quickconnect */
+$('#btnQuick').onclick = () => {
+  const bar = $('#quickbar');
+  bar.hidden = !bar.hidden;
+  if (!bar.hidden) bar.elements.host.focus();
+};
+$('#quickbar').addEventListener('submit', async () => {
+  const f = $('#quickbar');
+  const quick = { host: f.elements.host.value, username: f.elements.username.value, password: f.elements.password.value, port: f.elements.port.value };
+  const el = $('#connStatus');
+  el.className = 'status busy';
+  el.textContent = `Connecting to ${quick.host}…`;
+  try {
+    saveTabState();
+    const r = await api('connect', { quick });
+    f.elements.password.value = '';
+    S.switching = true;
+    applyStatus(r.status);
+    S.switching = false;
+    S.tabState[r.status.tab] = { remote: r.remote_path };
+    await PR.load(r.remote_path);
+    toast(`Connected to ${r.status.label}`, 'ok');
+  } catch (e) {
+    applyStatus(S.status); kickPoll();
+    const msg = e.message.startsWith('NEED_PASSWORD') ? 'Login failed: wrong username or password.' : e.message;
+    modal({ title: 'Connection failed', body: `<p>${esc(msg)}</p>`, buttons: [{ label: 'OK', value: null, primary: true }] });
+  }
+});
+
+/* ---------------------------------------------------------------- settings (filters, speed limits, editing) */
+async function openSettings() {
+  const st = (await api('settings')).settings;
+  const body = `
+    <div class="sm-group">Filename filters</div>
+    <label class="check"><input type="checkbox" id="stFilt" ${st.filters_enabled ? 'checked' : ''}> Use filters</label>
+    <label class="field">Names to filter – one per line, wildcards allowed (e.g. *.log)
+      <textarea id="stFilters" rows="6" class="mono" spellcheck="false">${esc(st.filters.join('\n'))}</textarea></label>
+    <label class="check"><input type="checkbox" id="stHide" ${st.filters_hide ? 'checked' : ''}> Hide them in the file lists</label>
+    <label class="check"><input type="checkbox" id="stNoTx" ${st.filters_transfer ? 'checked' : ''}> Never upload or download them</label>
+    <div class="perm-sep"></div>
+    <div class="sm-group">Speed limits</div>
+    <div class="row">
+      <label class="field">Upload (KB/s, 0 = unlimited)<input id="stUp" class="mono" value="${st.limit_up}"></label>
+      <label class="field">Download (KB/s, 0 = unlimited)<input id="stDown" class="mono" value="${st.limit_down}"></label>
+    </div>
+    <div class="perm-sep"></div>
+    <div class="sm-group">View / Edit</div>
+    <label class="field">Editor for “View/Edit” (empty = your system's text editor)
+      <span class="with-btn"><input id="stEditor" value="${esc(st.editor)}" placeholder="e.g. /Applications/Visual Studio Code.app"><button type="button" data-pick="file">Browse…</button></span></label>
+    <label class="check"><input type="checkbox" id="stAuto" ${st.edit_auto_upload ? 'checked' : ''}> Upload edited files automatically, without asking</label>`;
+  const { value, el } = await modal({
+    title: 'Settings', body, size: 'mid',
+    buttons: [{ label: 'Cancel', value: null }, { label: 'Save', value: 'ok', primary: true }],
+  });
+  if (!value) return;
+  try {
+    const r = await api('settings_save', { settings: {
+      filters_enabled: $('#stFilt', el).checked, filters: $('#stFilters', el).value.split('\n'),
+      filters_hide: $('#stHide', el).checked, filters_transfer: $('#stNoTx', el).checked,
+      limit_up: $('#stUp', el).value, limit_down: $('#stDown', el).value,
+      editor: $('#stEditor', el).value, edit_auto_upload: $('#stAuto', el).checked,
+    } });
+    S.settings = r.settings;
+    toast('Settings saved', 'ok');
+    PL.refresh(); if (S.status.connected) PR.refresh();
+  } catch (e) { toast(e.message, 'error'); }
+}
+$('#btnSettings').onclick = openSettings;
+
+/* ---------------------------------------------------------------- import from FileZilla */
+async function openFzImport(path) {
+  let data;
+  try { data = await api('filezilla_read', { path: path || null }); }
+  catch (e) {
+    const p = await askText('Import from FileZilla', `${e.message}. Path of sitemanager.xml:`, path || '');
+    if (p) return openFzImport(p);
+    return;
+  }
+  if (!data.sites.length) { toast('No FTP/SFTP sites found in FileZilla'); return; }
+  const rows = data.sites.map(x => `<tr>
+      <td class="c-chk"><input type="checkbox" data-i="${x.index}" ${x.exists ? '' : 'checked'}></td>
+      <td>${esc(x.site.folder ? x.site.folder + ' / ' : '')}<b>${esc(x.site.name)}</b>${x.exists ? ' <span class="muted">(already in FileBridge)</span>' : ''}</td>
+      <td class="mono">${esc(x.site.protocol.toUpperCase())} ${esc(x.site.host)}${x.site.port ? ':' + esc(x.site.port) : ''}</td>
+      <td>${esc(x.site.username)}</td>
+      <td class="muted">${x.has_password ? 'password' : esc(x.password_note || (x.site.auth === 'ask' ? 'ask' : x.site.auth))}</td></tr>`).join('');
+  const { value, el } = await modal({
+    title: 'Import from FileZilla', size: 'mid',
+    body: `<p class="muted" style="margin-top:0">From <span class="mono">${esc(data.path)}</span>. Passwords go straight into ${esc(S.platform?.keychain || 'the system keychain')}.</p>
+      <div class="cmp-wrap"><table class="cmp-table"><thead><tr><th style="width:30px"></th><th>Site</th><th>Server</th><th>User</th><th>Login</th></tr></thead><tbody>${rows}</tbody></table></div>
+      ${data.skipped.length ? `<p class="muted sm-note">Skipped: ${data.skipped.map(x => esc(x.name) + ' (' + esc(x.reason) + ')').join(', ')}</p>` : ''}`,
+    buttons: [{ label: 'Cancel', value: null }, { label: 'Import selected', value: 'ok', primary: true }],
+  });
+  if (!value) return;
+  const indexes = $$('[data-i]', el).filter(c => c.checked).map(c => +c.dataset.i);
+  if (!indexes.length) return;
+  try {
+    const r = await api('filezilla_import', { indexes });
+    S.sites = r.sites; S.folders = r.folders; renderSites();
+    toast(`Imported ${r.imported.length} site(s)`, 'ok');
+  } catch (e) { toast(e.message, 'error'); }
+}
 
 /* ---------------------------------------------------------------- site manager (FileZilla style) */
 const PROTO_LABEL = { sftp: 'SFTP - SSH File Transfer Protocol', ftp: 'FTP - File Transfer Protocol' };
@@ -1343,6 +1704,12 @@ function openSiteManager(focusId) {
   return modal({
     title: 'Site Manager', body, size: 'sm-size',
     buttons: [
+      { label: 'Import from FileZilla…', left: true, onClick: async (m, close) => {
+        if (!(await commit()).ok) return;
+        close('ok');
+        await openFzImport();
+        openSiteManager();
+      } },
       { label: 'Connect', primary: true, onClick: async (m, close) => {
         if (sel?.type !== 'site') return toast('Select a site to connect to');
         const r = await commit();
@@ -1737,6 +2104,7 @@ try { $('#year').textContent = new Date().getFullYear(); } catch { /* ignore */ 
   S.sites = r.sites;
   S.folders = r.folders || [];
   S.platform = r.platform || {};
+  S.settings = r.settings || {};
   document.body.classList.toggle('in-app', !!S.platform.window);
   S.plugins = r.plugins;
   S.home = r.home;

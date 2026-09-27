@@ -16,13 +16,25 @@
   <button id="btnConnect" class="primary">Connect</button>
   <button id="btnDisconnect" hidden>Disconnect</button>
   <span id="connStatus" class="status">Not connected</span>
+  <button id="btnQuick" title="Connect without saving a site">Quickconnect</button>
   <div class="spacer"></div>
+  <button id="btnSync" title="Synchronized browsing: open the same subfolder on both sides">⇄ Sync browsing</button>
   <button id="btnSites">Site Manager</button>
   <button id="btnCompare">Compare &amp; sync</button>
   <button id="btnDeploy">Deploy</button>
   <button id="btnPlugins">Plugins ▾</button>
+  <button id="btnSettings" title="Filters, speed limits, editing">Settings</button>
 </header>
+<form id="quickbar" class="quickbar" hidden autocomplete="off" onsubmit="return false">
+  <label>Host <input name="host" placeholder="sftp://example.com" spellcheck="false"></label>
+  <label>Username <input name="username" spellcheck="false"></label>
+  <label>Password <input name="password" type="password" autocomplete="new-password"></label>
+  <label>Port <input name="port" class="qport" placeholder="22"></label>
+  <button type="submit" class="primary" id="btnQuickGo">Quickconnect</button>
+  <span class="muted qhint">Start the host with sftp://, ftp://, ftps:// or ftpes://. Nothing is saved.</span>
+</form>
 
+<nav id="connTabs" class="conntabs" hidden></nav>
 <main class="panes">
   <section class="pane" id="paneLocal"></section>
   <section class="pane" id="paneRemote"></section>
@@ -33,6 +45,7 @@
     <div class="tabs">
       <button class="tab active" data-tab="queue">Queue <span id="queueCount" class="badge" hidden></span></button>
       <button class="tab" data-tab="log">Log</button>
+      <button class="tab" data-tab="edits" id="editTab" hidden>Edited files <span id="editCount" class="badge"></span></button>
     </div>
     <div class="spacer"></div>
     <label class="inline">If file exists
@@ -48,6 +61,7 @@
   </div>
   <div id="queue" class="tabpane"></div>
   <div id="log" class="tabpane" hidden></div>
+  <div id="edits" class="tabpane" hidden></div>
 </section>
 
 <footer class="appfoot">

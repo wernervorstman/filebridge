@@ -4,6 +4,7 @@
 Works on macOS (WebKit), Windows (Edge WebView2) and Linux (GTK WebKit or Qt).
 This is the entry point for the packaged app (see build/ and BUILD.md).
 """
+import json
 import os
 import sys
 import threading
@@ -21,6 +22,25 @@ from filebridge import system  # noqa: E402
 APP_PORT = 47655  # fixed, so the window keeps its settings (sort order, etc.) between runs
 
 
+def enable_os_drop(window):
+    """Files dragged from Finder / Explorer: pass their full paths to the page (window.fbOsDrop)."""
+    from webview.dom import DOMEventHandler
+
+    def on_drop(event):
+        files = (event.get('dataTransfer') or {}).get('files') or []
+        paths = [f['pywebviewFullPath'] for f in files if f.get('pywebviewFullPath')]
+        if paths:
+            window.evaluate_js(f'window.fbOsDrop && window.fbOsDrop({json.dumps(paths)})')
+
+    def register():
+        try:
+            window.dom.document.events.drop += DOMEventHandler(on_drop, prevent_default=True)
+        except Exception as e:  # dropping from Finder is a convenience; never block the app
+            print(f'File drop from the system is not available: {e}', flush=True)
+
+    window.events.loaded += register  # again after every page load
+
+
 def main():
     httpd, url = server.create_server(APP_PORT)
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
@@ -31,6 +51,7 @@ def main():
         text_select=True, background_color='#131410',
     )
     system.WINDOW = window
+    enable_os_drop(window)
     icon = os.path.join(system.resource_dir(), 'static', 'icon.png')
     try:
         webview.start(private_mode=False, storage_path=os.path.join(system.user_data_dir(), 'webview'),

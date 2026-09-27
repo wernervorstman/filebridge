@@ -411,3 +411,44 @@ button.icon .bi { width: 15px; height: 15px; }
 .bottom { margin: 0 12px 12px; border: 1px solid var(--border); border-radius: 14px; overflow: hidden; height: 180px; }
 .info-box .err { color: var(--danger); font-size: 12px; }
 #xPreview .mono { margin-top: 4px; word-break: break-all; }
+
+/* quickconnect bar */
+.quickbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 8px 16px; background: #1D1E19; color: rgba(255,255,255,.75); font-size: 12px; }
+.quickbar label { display: flex; align-items: center; gap: 6px; }
+.quickbar input { background: rgba(255,255,255,.08); color: #fff; border-color: rgba(255,255,255,.22); border-radius: 100px; padding: 4px 12px; width: 190px; }
+.quickbar input.qport { width: 70px; }
+.quickbar .qhint { color: rgba(255,255,255,.45); }
+.quickbar button.primary { background: #fff; color: var(--dl-ink); border-color: #fff; font-weight: 700; }
+.topbar button.on { background: var(--dl-green-bright); color: var(--dl-ink); border-color: var(--dl-green-bright); }
+.modal .mfoot button[style*="margin-right"] ~ button[style*="margin-right"] { margin-right: 0 !important; }
+.topbar .status { white-space: nowrap; }
+.edit-actions { display: flex; gap: 6px; justify-content: flex-end; }
+#edits .job { grid-template-columns: 18px 1fr 200px 0 150px; }
+
+/* connection tabs */
+.conntabs { display: flex; gap: 4px; padding: 8px 12px 0; overflow-x: auto; }
+.ctab { display: inline-flex; align-items: center; gap: 8px; border-radius: 10px 10px 0 0; border-bottom: none; padding: 6px 10px 6px 14px; background: var(--panel-2); color: var(--muted); font-weight: 600; }
+.ctab.active { background: var(--panel); color: var(--text); border-color: var(--dl-green); box-shadow: inset 0 3px 0 var(--dl-green); }
+.ctab .cdot { width: 8px; height: 8px; border-radius: 2px; }
+.ctab .cx { width: 18px; height: 18px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: var(--muted); font-size: 14px; line-height: 1; }
+.ctab .cx:hover { background: var(--danger); color: #fff; }
+.ctab.cnew { border-radius: 100px; padding: 4px 12px; margin-left: 4px; border-bottom: 1px solid var(--border); }
+.conntabs:not([hidden]) + .panes { padding-top: 6px; }
+
+/* folder tree */
+.pbody { flex: 1; display: flex; min-height: 0; }
+.pbody .list { flex: 1; min-width: 0; }
+.tree { width: 230px; flex: none; overflow: auto; border-right: 1px solid var(--border); padding: 6px 0; font-size: 12px; background: var(--panel); }
+.tnode { display: flex; align-items: center; gap: 4px; padding: 2px 8px; white-space: nowrap; cursor: pointer; }
+.tnode:hover { background: var(--panel-2); }
+.tnode.cur { background: var(--sel); font-weight: 600; box-shadow: inset 3px 0 0 var(--dl-green); }
+.tnode .tcaret { width: 12px; flex: none; color: var(--muted); text-align: center; }
+.tnode .ico { width: 14px; height: 14px; }
+.tnode .tname { overflow: hidden; text-overflow: ellipsis; }
+
+/* narrow file lists (e.g. with the folder tree open): drop the least important columns, never the name */
+.pbody .list { container-type: inline-size; }
+.tree { width: 210px; }
+@container (max-width: 600px) { th.c-perm, td.c-perm { display: none; } }
+@container (max-width: 470px) { th.c-date, td.c-date { display: none; } }
+@container (max-width: 360px) { th.c-type, td.c-type { display: none; } }

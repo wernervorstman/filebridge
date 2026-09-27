@@ -54,6 +54,36 @@ def plugins_dir():
     return target
 
 
+def open_file(path):
+    """Open a local file with its default app (like double-clicking it)."""
+    if IS_MAC:
+        subprocess.Popen(['open', path])
+    elif IS_WIN:
+        os.startfile(path)  # noqa: S606
+    else:
+        subprocess.Popen(['xdg-open', path])
+
+
+def edit_file(path, editor=''):
+    """Open a file in a text editor: the chosen one, or the system's default text editor."""
+    editor = (editor or '').strip()
+    if IS_MAC:
+        if editor:
+            subprocess.Popen(['open', '-a', editor, path])  # an app name or a path to a .app
+        else:
+            subprocess.Popen(['open', '-t', path])  # default text editor (TextEdit unless changed)
+    elif IS_WIN:
+        if editor:
+            subprocess.Popen([editor, path])
+        else:
+            try:
+                os.startfile(path, 'edit')  # noqa: S606 – the "Edit" action for this file type
+            except OSError:
+                subprocess.Popen(['notepad.exe', path])
+    else:
+        subprocess.Popen([editor, path] if editor else ['xdg-open', path])
+
+
 def keychain_name():
     return 'the macOS Keychain' if IS_MAC else 'Windows Credential Manager' if IS_WIN else 'the system keyring'
 

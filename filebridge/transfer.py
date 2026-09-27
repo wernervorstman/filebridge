@@ -10,6 +10,7 @@ import posixpath
 import queue
 import stat
 import threading
+import time
 
 from . import remote as R
 
@@ -24,6 +25,56 @@ MTIME_SLACK = 2  # seconds
 UNKNOWN = object()  # "we haven't looked whether the destination exists"
 
 
+class Limiter:
+    """Speed limit shared by all transfers in one direction (token bucket)."""
+
+    def __init__(self):
+        self.rate = 0  # bytes per second, 0 = unlimited
+        self.lock = threading.Lock()
+        self.allowance = 0.0
+        self.last = time.monotonic()
+
+    def set(self, kb_per_s):
+        with self.lock:
+            self.rate = max(0, int(kb_per_s or 0)) * 1024
+            self.allowance = float(self.rate)
+            self.last = time.monotonic()
+
+    def consume(self, n):
+        while True:
+            with self.lock:
+                if not self.rate:
+                    return
+                now = time.monotonic()
+                self.allowance = min(self.rate, self.allowance + (now - self.last) * self.rate)
+                self.last = now
+                if self.allowance >= n or self.allowance >= self.rate:
+                    self.allowance -= n
+                    return
+                wait = (n - self.allowance) / self.rate
+            time.sleep(min(wait, 0.5))
+
+
+LIMIT = {'up': Limiter(), 'down': Limiter()}
+
+
+def set_limits(up_kb, down_kb):
+    LIMIT['up'].set(up_kb)
+    LIMIT['down'].set(down_kb)
+
+
+def _excluded(job, name):
+    ex = getattr(job, 'exclude', None)
+    return bool(ex and ex(name))
+
+
+def _record_failure(job, direction, src, dst, err):
+    """Remember a failed file so it can be retried; the rest of the job carries on."""
+    with job._lock:
+        job.failed.append({'direction': direction, 'src': src, 'dst': dst, 'error': str(err) or type(err).__name__})
+    job.log(f'Failed: {posixpath.basename(dst) if direction == "upload" else os.path.basename(dst)} – {err}', 'error')
+
+
 def _skip(policy, src_size, src_mtime, dst_size, dst_mtime):
     if policy == 'skip_exists':
         return True
@@ -34,12 +85,15 @@ def _skip(policy, src_size, src_mtime, dst_size, dst_mtime):
     return False
 
 
-def _copy(job, src, dst):
+def _copy(job, src, dst, direction):
+    limiter = LIMIT[direction]
+    chunk = CHUNK if not limiter.rate else max(8192, min(CHUNK, limiter.rate // 4))
     while True:
         job.check()
-        data = src.read(CHUNK)
+        data = src.read(chunk)
         if not data:
             break
+        limiter.consume(len(data))
         dst.write(data)
         job.add(len(data))
 
@@ -102,7 +156,7 @@ def _upload_file(job, sftp, local, remote_path, policy, existing=UNKNOWN):
             if offset:
                 rf.seek(offset)
                 job.add(offset)
-            _copy(job, f, rf)
+            _copy(job, f, rf, 'up')
     st = os.stat(local)
     try:
         sftp.utime(remote_path, (st.st_atime, st.st_mtime))
@@ -133,7 +187,7 @@ def download_file(job, sftp, remote_path, local, policy='overwrite', rst=None):
         with open(local, 'r+b' if offset else 'wb') as f:
             if offset:
                 f.seek(offset)
-            _copy(job, rf, f)
+            _copy(job, rf, f, 'down')
     try:
         os.utime(local, (rst.st_atime, rst.st_mtime))
     except OSError:
@@ -273,24 +327,41 @@ def upload_paths(job, sftp, local_paths, remote_dir, policy='overwrite'):
     for p in local_paths:
         job.check()
         name = os.path.basename(p.rstrip(os.sep))
+        if _excluded(job, name):
+            job.skipped_filtered += 1
+            continue
         if os.path.isdir(p):
             target = posixpath.join(remote_dir, name)
             ensure_dir(target)
             for d, dirs, files in os.walk(p):
                 job.check()
+                kept = [x for x in dirs if not _excluded(job, x)]
+                job.skipped_filtered += len(dirs) - len(kept)
+                dirs[:] = kept  # don't walk into filtered folders
                 rel = os.path.relpath(d, p)
                 rdir = target if rel == '.' else posixpath.join(target, *rel.split(os.sep))
                 for sub in dirs:
                     ensure_dir(posixpath.join(rdir, sub))
-                tasks += [(os.path.join(d, f), rdir, f) for f in files]
+                for f in files:
+                    if _excluded(job, f):
+                        job.skipped_filtered += 1
+                    else:
+                        tasks.append((os.path.join(d, f), rdir, f))
         else:
             tasks.append((p, remote_dir, name))
 
     # 2) the files, several at a time; folder listings only when the policy needs them
     def work(client, t):
         local, rdir, name = t
-        existing = listings.get(client, rdir).get(name) if need_listing else UNKNOWN
-        return upload_file(job, client, local, posixpath.join(rdir, name), policy, existing)
+        remote_path = posixpath.join(rdir, name)
+        try:
+            existing = listings.get(client, rdir).get(name) if need_listing else UNKNOWN
+            return upload_file(job, client, local, remote_path, policy, existing)
+        except (OSError, EOFError) as e:  # this file failed – continue with the others
+            if not os.path.exists(local):
+                raise
+            _record_failure(job, 'upload', local, remote_path, e)
+            return 'failed'
 
     return _count(run_parallel(job, sftp, tasks, work))
 
@@ -300,6 +371,9 @@ def download_paths(job, sftp, remote_paths, local_dir, policy='overwrite'):
     dirs = []
     for p in remote_paths:
         name = posixpath.basename(p.rstrip('/'))
+        if _excluded(job, name):
+            job.skipped_filtered += 1
+            continue
         target = os.path.join(local_dir, name)
         st = sftp.stat(p)
         if stat.S_ISDIR(st.st_mode or 0):
@@ -308,6 +382,9 @@ def download_paths(job, sftp, remote_paths, local_dir, policy='overwrite'):
             for full, a in R.walk(sftp, p):
                 job.check()
                 rel = full[len(base):]
+                if any(_excluded(job, part) for part in rel.split('/')):
+                    job.skipped_filtered += 1
+                    continue
                 lpath = os.path.join(target, *rel.split('/'))
                 if stat.S_ISDIR(a.st_mode or 0):
                     dirs.append(lpath)
@@ -322,14 +399,21 @@ def download_paths(job, sftp, remote_paths, local_dir, policy='overwrite'):
         os.makedirs(d, exist_ok=True)
 
     def work(client, t):
-        os.makedirs(os.path.dirname(t[1]), exist_ok=True)
-        return download_file(job, client, t[0], t[1], policy, t[2])
+        try:
+            os.makedirs(os.path.dirname(t[1]), exist_ok=True)
+            return download_file(job, client, t[0], t[1], policy, t[2])
+        except PermissionError:
+            raise  # e.g. macOS blocks the folder: the whole job should explain that
+        except (OSError, EOFError) as e:
+            _record_failure(job, 'download', t[0], t[1], e)
+            return 'failed'
 
     return _count(run_parallel(job, sftp, tasks, work))
 
 
 def summary(counts, direction='upload'):
     labels = {'uploaded': 'uploaded', 'downloaded': 'downloaded', 'resumed': 'resumed',
-              'skipped': 'skipped (already on the server)' if direction == 'upload' else 'skipped (already here)'}
-    parts = [f'{counts[k]} {labels[k]}' for k in ('uploaded', 'downloaded', 'resumed', 'skipped') if counts.get(k)]
+              'skipped': 'skipped (already on the server)' if direction == 'upload' else 'skipped (already here)',
+              'failed': 'FAILED'}
+    parts = [f'{counts[k]} {labels[k]}' for k in ('uploaded', 'downloaded', 'resumed', 'skipped', 'failed') if counts.get(k)]
     return ', '.join(parts) if parts else 'nothing to do'

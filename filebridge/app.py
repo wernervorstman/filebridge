@@ -4,7 +4,9 @@ import posixpath
 import threading
 import time
 
-from . import deploy, extract, localfs, perms, sync, system, transfer
+from . import deploy, extract, filezilla_import, localfs, perms, sync, system, transfer
+from .editing import EditManager
+from .settings import Settings
 from .common import ApiError
 from .jobs import JobManager
 from .plugins import PluginContext, PluginManager
@@ -19,10 +21,15 @@ class App:
         self._log = []
         self._log_lock = threading.Lock()
         self.sites = SiteStore()
+        self.settings = Settings()
+        transfer.set_limits(self.settings.get('limit_up'), self.settings.get('limit_down'))
         self.jobs = JobManager(self.log)
-        self.remote = None
+        self.conns = {}        # tab id -> Remote/FtpRemote (one per tab)
+        self.active = None     # tab id of the tab shown in the server pane
+        self._tab_seq = 0
         self.plugins = PluginManager(system.plugins_dir(), self.log)
         self.plugins.load()
+        self.edits = EditManager(self)
 
     # --- plumbing ---
     def log(self, msg, level='info'):
@@ -36,30 +43,48 @@ class App:
             raise ApiError(f'Unknown action: {name}')
         return fn(body) or {}
 
+    @property
+    def remote(self):
+        """The connection of the active tab (None when no tab is open)."""
+        return self.conns.get(self.active)
+
     def shutdown(self):
         self.jobs.cancel_all()
-        if self.remote:
-            self.remote.close()
+        for r in list(self.conns.values()):
+            r.close()
+
+    def _close_tab(self, tab_id):
+        r = self.conns.pop(tab_id, None)
+        if r:
+            r.close()
+        if self.active == tab_id:
+            self.active = next(reversed(self.conns), None) if self.conns else None
+        return r
 
     def need_remote(self):
-        if not self.remote:
+        r = self.remote
+        if not r:
             raise ApiError('Not connected')
-        if not self.remote.alive():
-            self.remote.close()
-            self.remote = None
-            self.log('Connection lost', 'error')
+        if not r.alive():
+            self._close_tab(self.active)
+            self.log(f'Connection to {r.site["host"]} lost', 'error')
             raise ApiError('Connection lost – please reconnect')
-        return self.remote
+        return r
+
+    @staticmethod
+    def _describe(r):
+        s = r.site
+        proto = 'FTP' if s.get('protocol') == 'ftp' else 'SFTP'
+        return {'site_id': s['id'], 'protocol': proto, 'name': s.get('name') or s['host'],
+                'label': f'{s["username"] or "anonymous"}@{s["host"]} · {proto}',
+                'color': s.get('color') or '', 'can_exec': r._can_exec}
 
     def _status(self):
+        tabs = [{'id': tid, **self._describe(r)} for tid, r in self.conns.items()]
         r = self.remote
         if r and r.alive():
-            s = r.site
-            proto = 'FTP' if s.get('protocol') == 'ftp' else 'SFTP'
-            return {'connected': True, 'site_id': s['id'], 'protocol': proto,
-                    'label': f'{s["username"] or "anonymous"}@{s["host"]} · {proto}',
-                    'color': s.get('color') or '', 'can_exec': r._can_exec}
-        return {'connected': False}
+            return {'connected': True, 'tab': self.active, 'tabs': tabs, **self._describe(r)}
+        return {'connected': False, 'tabs': tabs}
 
     def _max_connections(self, site):
         try:
@@ -83,12 +108,13 @@ class App:
         d, f = conv(site.get('upload_dir_mode')), conv(site.get('upload_file_mode'))
         return (d, f) if d is not None or f is not None else None
 
-    def _job(self, kind, title, fn, refresh=(), remote=True):
-        """Submit a job; remote jobs get their own SFTP channel."""
+    def _job(self, kind, title, fn, refresh=(), remote=True, conn=None):
+        """Submit a job; remote jobs get their own SFTP channel (on `conn`, default the active connection)."""
         if remote:
-            r = self.need_remote()
+            r = conn or self.need_remote()
 
             def run(job):
+                job.exclude = self.settings.excluded
                 job.upload_perms = self._upload_perms(r.site)
                 job.new_client = r.new_sftp            # extra connections for parallel transfers
                 job.parallel = self._max_connections(r.site)
@@ -108,13 +134,13 @@ class App:
         return {'home': os.path.expanduser('~'), 'sites': self.sites.list(), 'folders': self.sites.folders,
                 'platform': {'file_manager': system.file_manager_name(), 'keychain': system.keychain_name(), 'window': system.WINDOW is not None,
                              'sep': os.sep},
-                'plugins': self.plugins.list(), 'status': self._status(),
+                'plugins': self.plugins.list(), 'status': self._status(), 'settings': self.settings.all(),
                 'ignore': sync.DEFAULT_IGNORE}
 
     def api_jobs(self, b):
         with self._log_lock:
             log = list(self._log[-300:])
-        return {'jobs': self.jobs.list(), 'log': log, 'status': self._status()}
+        return {'jobs': self.jobs.list(), 'log': log, 'status': self._status(), 'edits': self.edits.list()}
 
     def api_job_cancel(self, b):
         self.jobs.cancel(b['id'])
@@ -138,6 +164,108 @@ class App:
         if path and len(path) > 1 and not path.endswith(':\\'):
             path = path.rstrip('/\\')
         return {'path': path or None}
+
+    # --- View/Edit ---
+    def api_edit_open(self, b):
+        """Download a server file and open it in the editor; changes are offered for upload."""
+        r = self.need_remote()
+        try:
+            return {'id': self.edits.start(r, b['path'])}
+        except (OSError, EOFError) as e:
+            raise ApiError(f'Could not open {posixpath.basename(b["path"])} for editing: {e}')
+
+    def api_edit_upload(self, b):
+        try:
+            return self.edits.upload(b['id'])
+        except ValueError as e:
+            raise ApiError(str(e))
+
+    def api_edit_discard(self, b):
+        self.edits.discard(b['id'])
+
+    def api_edit_stop(self, b):
+        self.edits.stop(b['id'])
+
+    def api_open_local(self, b):
+        """Open a local file with its default app, or in the text editor (edit=True)."""
+        path = localfs.norm(b['path'])
+        if not os.path.isfile(path):
+            raise ApiError('Not a file')
+        if b.get('edit'):
+            system.edit_file(path, self.settings.get('editor'))
+        else:
+            system.open_file(path)
+
+    # --- app settings (filters, speed limits, editing) ---
+    def api_settings(self, b):
+        return {'settings': self.settings.all()}
+
+    def api_settings_save(self, b):
+        s = self.settings.update(b.get('settings') or {})
+        transfer.set_limits(s['limit_up'], s['limit_down'])
+        self.log('Settings saved')
+        return {'settings': s}
+
+    # --- retry failed files ---
+    def api_job_retry(self, b):
+        old = self.jobs.get(b['id'])
+        if not old or not old.failed:
+            raise ApiError('Nothing to retry')
+        items = list(old.failed)
+
+        def fn(job, sftp):
+            def work(client, it):
+                job.check()
+                try:
+                    if it['direction'] == 'upload':
+                        transfer.R.makedirs(client, posixpath.dirname(it['dst']))
+                        return transfer.upload_file(job, client, it['src'], it['dst'], 'overwrite')
+                    os.makedirs(os.path.dirname(it['dst']), exist_ok=True)
+                    return transfer.download_file(job, client, it['src'], it['dst'], 'overwrite')
+                except (OSError, EOFError) as e:
+                    transfer._record_failure(job, it['direction'], it['src'], it['dst'], e)
+                    return 'failed'
+            for it in items:
+                if it['direction'] == 'upload' and os.path.exists(it['src']):
+                    job.total += os.path.getsize(it['src'])
+            c = transfer._count(transfer.run_parallel(job, sftp, items, work))
+            msg = f'Retry finished: {transfer.summary(c, items[0]["direction"])}.'
+            job.log(msg)
+            return {'message': msg}
+
+        old.failed = []  # handed over to the retry job
+        return self._job('retry', f'Retry {len(items)} failed file(s)', fn, list(old.refresh))
+
+    # --- import from FileZilla ---
+    def api_filezilla_read(self, b):
+        data = filezilla_import.read(b.get('path'))
+        existing = {(s['host'].lower(), (s.get('username') or '').lower(), s.get('protocol', 'sftp')) for s in self.sites.list()}
+        out = []
+        for i, item in enumerate(data['sites']):
+            s = item['site']
+            out.append({'index': i, 'site': s, 'has_password': bool(item['password']),
+                        'password_note': item['password_note'],
+                        'exists': (s['host'].lower(), s['username'].lower(), s['protocol']) in existing})
+        self._fz_cache = data
+        return {'path': data['path'], 'sites': out, 'skipped': data['skipped']}
+
+    def api_filezilla_import(self, b):
+        data = getattr(self, '_fz_cache', None)
+        if not data:
+            raise ApiError('Read the FileZilla site list first')
+        chosen = set(b.get('indexes') or [])
+        imported = []
+        for i, item in enumerate(data['sites']):
+            if i not in chosen:
+                continue
+            site = dict(item['site'])
+            if not site.get('username') and site.get('auth') != 'anonymous':
+                site['username'] = '?'
+            saved = self.sites.save(site, password=item['password'] or None)
+            imported.append(saved['name'])
+        self._fz_cache = None  # don't keep passwords in memory
+        self.log(f'Imported {len(imported)} site(s) from FileZilla', 'ok')
+        return {'imported': imported, 'sites': self.sites.list(), 'folders': self.sites.folders}
 
     # --- sites ---
     def api_sites(self, b):
@@ -169,9 +297,12 @@ class App:
 
     # --- connection ---
     def api_connect(self, b):
-        site = self.sites.get(b['site_id'])
+        if b.get('quick'):
+            site = self._quick_site(b['quick'])
+        else:
+            site = self.sites.get(b['site_id'])
         auth = site.get('auth', 'password')
-        password = b.get('password') or None
+        password = b.get('password') or (b.get('quick') or {}).get('password') or None
         passphrase = self.sites.get_secret(site['id'], 'passphrase')
         if auth == 'anonymous':
             site = {**site, 'username': 'anonymous'}
@@ -181,8 +312,6 @@ class App:
                 password = self.sites.get_secret(site['id'], 'password')
             if not password:
                 raise ApiError('NEED_PASSWORD' + ('_ASK' if auth == 'ask' else ''))
-        if self.remote:
-            self.api_disconnect({})
         is_ftp = site.get('protocol') == 'ftp'
         self.log(f'Connecting to {site["username"]}@{site["host"]}:{site.get("port")} '
                  f'({"FTP" if is_ftp else "SFTP"}) …')
@@ -194,7 +323,10 @@ class App:
                 self.log(f'Login failed for {site["username"]}@{site["host"]}', 'error')
                 raise ApiError('NEED_PASSWORD:' + str(e))
             raise
-        self.remote = r
+        self._tab_seq += 1
+        tab_id = f't{self._tab_seq}'
+        self.conns[tab_id] = r          # every connection opens in its own tab
+        self.active = tab_id
         if b.get('password') and b.get('save') and auth == 'password':
             self.sites.save(site, password=b['password'])
         if r.new_host_key:
@@ -208,25 +340,59 @@ class App:
         threading.Thread(target=r.can_exec, daemon=True).start()
         return {'status': self._status(), 'remote_path': path, 'sites': self.sites.list()}
 
+    @staticmethod
+    def _quick_site(q):
+        """A temporary site for the Quickconnect bar (never saved)."""
+        host = (q.get('host') or '').strip()
+        if not host:
+            raise ApiError('Fill in a host')
+        protocol, encryption = 'sftp', 'auto'
+        for prefix, proto, enc in (('sftp://', 'sftp', 'auto'), ('ftps://', 'ftp', 'implicit'),
+                                   ('ftpes://', 'ftp', 'explicit'), ('ftp://', 'ftp', 'auto')):
+            if host.lower().startswith(prefix):
+                host, protocol, encryption = host[len(prefix):], proto, enc
+                break
+        else:
+            port = str(q.get('port') or '').strip()
+            if port in ('21', '990'):
+                protocol, encryption = 'ftp', 'implicit' if port == '990' else 'auto'
+        host = host.rstrip('/')
+        try:
+            port = int(q.get('port') or 0) or (22 if protocol == 'sftp' else 990 if encryption == 'implicit' else 21)
+        except ValueError:
+            raise ApiError('Port must be a number')
+        user = (q.get('username') or '').strip()
+        return {'id': 'quick', 'name': f'{user}@{host}' if user else host, 'host': host, 'port': port,
+                'username': user or 'anonymous', 'protocol': protocol, 'encryption': encryption,
+                'auth': 'password' if user else ('anonymous' if protocol == 'ftp' else 'password'),
+                'charset': 'auto', 'transfer_mode': 'default'}
+
     def api_disconnect(self, b):
-        if self.remote:
-            host = self.remote.site['host']
-            self.remote.close()
-            self.remote = None
-            self.log(f'Disconnected from {host}')
+        """Close a tab (default: the active one)."""
+        r = self._close_tab(b.get('tab') or self.active)
+        if r:
+            self.log(f'Disconnected from {r.site["host"]}')
+        return {'status': self._status()}
+
+    def api_tab_switch(self, b):
+        if b.get('tab') not in self.conns:
+            raise ApiError('This tab is closed')
+        self.active = b['tab']
         return {'status': self._status()}
 
     # --- browsing and file operations ---
     def api_list(self, b):
         if b['side'] == 'local':
             path, entries = localfs.list_dir(b.get('path'))
-            return {'path': path, 'entries': entries, 'parent': localfs.parent(path)}
+            extra = {'parent': localfs.parent(path)}
         else:
             try:
                 path, entries = self.need_remote().list(b.get('path'))
             except IOError as e:
                 raise ApiError(f'Cannot open {b.get("path")}: {e}')
-        return {'path': path, 'entries': entries}
+            extra = {}
+        shown = [e for e in entries if not self.settings.hidden(e['name'])]
+        return {'path': path, 'entries': shown, 'filtered': len(entries) - len(shown), **extra}
 
     def _join(self, side, d, name):
         if '/' in name or name in ('', '.', '..'):
