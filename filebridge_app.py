@@ -52,10 +52,18 @@ def main():
     )
     system.WINDOW = window
     enable_os_drop(window)
-    icon = os.path.join(system.resource_dir(), 'static', 'icon.png')
+    # Window icon: Windows needs an .ico (a .png crashes WinForms), Linux uses the .png,
+    # macOS takes the icon from the app bundle.
+    icon = None
+    if system.IS_WIN:
+        icon = os.path.join(system.resource_dir(), 'static', 'icon.ico')
+    elif not system.IS_MAC:
+        icon = os.path.join(system.resource_dir(), 'static', 'icon.png')
+    if icon and not os.path.exists(icon):
+        icon = None
     try:
         webview.start(private_mode=False, storage_path=os.path.join(system.user_data_dir(), 'webview'),
-                      icon=icon if os.path.exists(icon) else None)
+                      icon=icon)
     except Exception as e:  # e.g. Linux without a GTK/Qt web engine: use the default browser instead
         print(f'Could not open the app window ({e}); opening FileBridge in your browser.', flush=True)
         system.WINDOW = None
