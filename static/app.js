@@ -799,7 +799,8 @@ async function openExtract(pane) {
     <label class="field">Extract to (server folder)<span class="with-btn"><input id="xDest" value="${esc(dest)}"><button type="button" data-current="remote">Use current</button></span></label>
     <label class="check"><input type="radio" name="xInto" value="here" checked> Directly into this folder</label>
     <label class="check"><input type="radio" name="xInto" value="folder"> Into a new folder “${esc(base)}”</label>
-    <label class="check"><input type="checkbox" id="xStrip" checked> If the zip contains one top folder, extract only its contents</label>
+    <label class="check"><input type="checkbox" id="xStrip"> Leave out the zip's top folder (extract only what is inside it)</label>
+    <div id="xPreview" class="info-box"><span class="muted">Reading the zip…</span></div>
     <div class="perm-sep"></div>
     <div class="row"><label class="field">Files that already exist on the server
       <select id="xPolicy"><option value="overwrite">Overwrite them</option><option value="skip_exists">Keep them (only add new files)</option></select></label></div>
@@ -824,6 +825,38 @@ async function openExtract(pane) {
     buttons: [{ label: 'Cancel', value: null }, { label: fromLocal ? 'Upload & extract' : 'Extract', value: 'ok', primary: true }],
     onOpen(m) {
       ['#xDirMode', '#xFileMode'].forEach(id => $(id, m).addEventListener('input', () => { $('#xPerms', m).checked = true; }));
+      // Preview: show exactly where the files will end up, and warn about a likely mistake
+      let info = null, destNames = null, destFor = null;
+      const box = $('#xPreview', m);
+      const render = async () => {
+        if (!info) return;
+        const destVal = $('#xDest', m).value.trim().replace(/\/+$/, '') || '/';
+        const into = $('input[name=xInto]:checked', m).value === 'folder';
+        const strip = $('#xStrip', m).checked;
+        const target = into ? `${destVal === '/' ? '' : destVal}/${base}` : destVal;
+        const top = info.top_folder;
+        const map = p => (strip && top && p.startsWith(top + '/') ? p.slice(top.length + 1) : p);
+        const rows = info.sample.slice(0, 3).map(p => `<div class="mono">${esc(p)} <span class="muted">→</span> ${esc((target === '/' ? '' : target) + '/' + map(p))}</div>`).join('');
+        let warn = '';
+        if (destFor !== destVal) {
+          destFor = destVal; destNames = null;
+          try { destNames = new Set((await api('list', { side: 'remote', path: destVal })).entries.map(e => e.name)); } catch { destNames = null; }
+        }
+        if (strip && top && !into && destNames?.has(top)) {
+          warn = `<div class="err" style="margin-top:8px">⚠ This folder already contains “${esc(top)}/”. With “Leave out the zip's top folder” on, the files do <b>not</b> go into “${esc(top)}/” and the existing files there are <b>not</b> replaced. Untick it to update “${esc(top)}/”.</div>`;
+        }
+        box.innerHTML = `<b>Result</b> (${info.files} files${top ? `, top folder “${esc(top)}/”` : ''}):${rows}${info.files > 3 ? '<div class="muted">…</div>' : ''}${warn}`;
+      };
+      api('zip_info', { side: pane.side, zip: z.path }).then(r => {
+        info = r.info;
+        if (!info) { box.innerHTML = '<span class="muted">The zip is too large to preview; it will be extracted as shown by the options above.</span>'; return; }
+        if (!info.top_folder) $('#xStrip', m).closest('label').hidden = true;
+        render();
+      }).catch(e => { box.innerHTML = `<span class="muted">Could not read the zip: ${esc(e.message)}</span>`; });
+      ['#xDest', '#xStrip'].forEach(id => $(id, m).addEventListener('input', render));
+      $('#xStrip', m).addEventListener('change', render);
+      $$('input[name=xInto]', m).forEach(r => r.addEventListener('change', render));
+      $('#xDest', m).addEventListener('change', render);
     },
   });
   if (!value) return;

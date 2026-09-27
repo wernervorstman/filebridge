@@ -315,6 +315,39 @@ class App:
                          ['local', 'remote'])
 
     # --- extract zip ---
+    def api_zip_info(self, b):
+        """Contents of a zip (top folder + sample paths) for the Extract dialog preview."""
+        zp = b['zip']
+        if b.get('side') == 'local':
+            try:
+                return {'info': deploy.inspect(localfs.norm(zp))}
+            except Exception as e:
+                raise ApiError(f'Not a valid zip file: {e}')
+        r = self.need_remote()
+        if r.has_command('unzip'):
+            names = extract._remote_names(r, zp)
+            files = [n for n in names if not n.endswith('/') and not n.startswith('__MACOSX/')]
+            return {'info': {'top_folder': deploy.top_folder(names), 'files': len(files), 'sample': files[:12]}}
+        with r.lock:
+            size = r.sftp.stat(zp).st_size or 0
+        if size > 300 * 1024 * 1024:
+            return {'info': None}
+        import tempfile
+        with tempfile.TemporaryDirectory(prefix='filebridge_') as td:
+            lz = os.path.join(td, 'preview.zip')
+            with r.lock:
+                r.sftp.get(zp, lz) if hasattr(r.sftp, 'get') else self._ftp_fetch(r.sftp, zp, lz)
+            return {'info': deploy.inspect(lz)}
+
+    @staticmethod
+    def _ftp_fetch(client, remote_path, local_path):
+        with client.open(remote_path, 'rb') as rf, open(local_path, 'wb') as f:
+            while True:
+                data = rf.read(256 * 1024)
+                if not data:
+                    break
+                f.write(data)
+
     def api_extract(self, b):
         """Upload & extract a local zip, or extract a zip that is already on the server."""
         r = self.need_remote()

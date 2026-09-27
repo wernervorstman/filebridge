@@ -409,3 +409,5 @@ tbody tr.sel { background: var(--sel); box-shadow: inset 3px 0 0 var(--dl-green)
 button.icon { display: inline-flex; align-items: center; justify-content: center; padding: 5px 9px; }
 button.icon .bi { width: 15px; height: 15px; }
 .bottom { margin: 0 12px 12px; border: 1px solid var(--border); border-radius: 14px; overflow: hidden; height: 180px; }
+.info-box .err { color: var(--danger); font-size: 12px; }
+#xPreview .mono { margin-top: 4px; word-break: break-all; }
