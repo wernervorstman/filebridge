@@ -458,3 +458,18 @@ button.icon .bi { width: 15px; height: 15px; }
 .appfoot #appVersion { color: rgba(255,255,255,.4); }
 .appfoot a.update-pill { background: var(--dl-green-bright); color: var(--dl-ink); border-radius: 100px; padding: 2px 10px; font-weight: 700; }
 .appfoot a.update-pill:hover { color: var(--dl-ink); filter: brightness(1.1); }
+
+/* resizable columns */
+thead th { position: sticky; }
+.col-grip { position: absolute; top: 0; right: 0; width: 8px; height: 100%; cursor: col-resize; z-index: 2; }
+.col-grip::after { content: ""; position: absolute; top: 25%; bottom: 25%; right: 3px; width: 2px; border-radius: 2px; background: var(--border); }
+thead th:hover .col-grip::after, .col-resizing .col-grip::after { background: var(--dl-green); }
+body.col-resizing, body.col-resizing * { cursor: col-resize !important; user-select: none !important; }
+.pbody .list { overflow: auto; }
+
+/* splitter between the panes and the queue / log */
+.hsplit { height: 8px; margin: -4px 12px -4px; cursor: row-resize; position: relative; z-index: 3; flex: none; }
+.hsplit::after { content: ""; position: absolute; left: 50%; top: 3px; width: 48px; height: 3px; margin-left: -24px; border-radius: 3px; background: var(--border); }
+.hsplit:hover::after, .row-resizing .hsplit::after { background: var(--dl-green); }
+body.row-resizing, body.row-resizing * { cursor: row-resize !important; user-select: none !important; }
+.bottom { flex: none; }

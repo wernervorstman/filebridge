@@ -235,6 +235,7 @@ class Pane {
     this.treeCache = new Map();   // folder path -> [subfolder names]
     this.treeOpen = new Set();    // folders the user expanded
     this.showTree = store.get(this.side + '.tree', false);
+    this.setupColumnResize();
     this.treeEl.hidden = !this.showTree;
     this.treeEl.addEventListener('click', e => this.onTreeClick(e));
     $('.hidden-toggle', this.el).checked = this.showHidden;
@@ -248,6 +249,7 @@ class Pane {
       this.showHidden = e.target.checked; store.set(this.side + '.hidden', this.showHidden); this.render();
     });
     $('thead', this.el).addEventListener('click', e => {
+      if (e.target.closest('.col-grip')) return;  // resizing, not sorting
       if (e.target.matches('input.all')) {
         const vis = this.visible();
         this.sel = e.target.checked ? new Set(vis.map(x => x.name)) : new Set();
@@ -374,6 +376,60 @@ class Pane {
       perms: (a, b) => (a.mode ?? -1) - (b.mode ?? -1) || byName(a, b),
     }[k] || byName;
     return [...list].sort((a, b) => (b.dir - a.dir) || d * cmp(a, b));
+  }
+
+  // --- resizable columns (drag the right edge of a column header; double-click it to reset) ---
+  setupColumnResize() {
+    this.colW = store.get(this.side + '.colw', {});
+    for (const th of $$('th[data-k]', this.el)) {
+      const grip = document.createElement('span');
+      grip.className = 'col-grip';
+      grip.title = 'Drag to resize · double-click to reset';
+      th.append(grip);
+      grip.addEventListener('mousedown', e => this.startColResize(e, th));
+      grip.addEventListener('dblclick', e => {
+        e.stopPropagation();
+        delete this.colW[th.dataset.k];
+        store.set(this.side + '.colw', this.colW);
+        this.applyColWidths();
+      });
+    }
+    this.applyColWidths();
+  }
+  applyColWidths() {
+    const table = $('table', this.list);
+    for (const th of $$('th[data-k]', this.el)) {
+      const w = this.colW[th.dataset.k];
+      th.style.width = w ? w + 'px' : '';
+    }
+    if (this.colW.name) {
+      // a fixed Name width: the table gets exactly the sum of the columns (scrolls sideways if wider)
+      const sum = $$('thead th', this.el).filter(th => getComputedStyle(th).display !== 'none')
+        .reduce((n, th) => n + (this.colW[th.dataset.k] || th.getBoundingClientRect().width), 0);
+      table.style.width = Math.round(sum) + 'px';
+      table.style.minWidth = '100%';
+    } else {
+      table.style.width = '';
+      table.style.minWidth = '';
+    }
+  }
+  startColResize(e, th) {
+    e.preventDefault();
+    e.stopPropagation();
+    const k = th.dataset.k, startX = e.clientX, startW = th.getBoundingClientRect().width;
+    document.body.classList.add('col-resizing');
+    const move = ev => {
+      this.colW[k] = Math.max(k === 'name' ? 120 : 50, Math.round(startW + ev.clientX - startX));
+      this.applyColWidths();
+    };
+    const up = () => {
+      document.removeEventListener('mousemove', move);
+      document.removeEventListener('mouseup', up);
+      document.body.classList.remove('col-resizing');
+      store.set(this.side + '.colw', this.colW);
+    };
+    document.addEventListener('mousemove', move);
+    document.addEventListener('mouseup', up);
   }
 
   // --- folder tree ---
@@ -1110,6 +1166,30 @@ $$('.tab').forEach(t => t.onclick = () => {
   $('#edits').hidden = t.dataset.tab !== 'edits';
   if (t.dataset.tab === 'log') $('#log').scrollTop = 1e9;
 });
+/* ---------------------------------------------------------------- resizable queue/log panel */
+(function setupBottomSplitter() {
+  const bottom = $('.bottom'), grip = $('#hsplit');
+  const clamp = h => Math.max(90, Math.min(Math.round(window.innerHeight * 0.7), Math.round(h)));
+  const saved = store.get('bottomHeight', null);
+  if (saved) bottom.style.height = clamp(saved) + 'px';
+  grip.addEventListener('mousedown', e => {
+    e.preventDefault();
+    const startY = e.clientY, startH = bottom.getBoundingClientRect().height;
+    document.body.classList.add('row-resizing');
+    const move = ev => { bottom.style.height = clamp(startH - (ev.clientY - startY)) + 'px'; };
+    const up = () => {
+      document.removeEventListener('mousemove', move);
+      document.removeEventListener('mouseup', up);
+      document.body.classList.remove('row-resizing');
+      store.set('bottomHeight', bottom.getBoundingClientRect().height);
+    };
+    document.addEventListener('mousemove', move);
+    document.addEventListener('mouseup', up);
+  });
+  grip.addEventListener('dblclick', () => { bottom.style.height = ''; store.set('bottomHeight', null); });
+  window.addEventListener('resize', () => { if (bottom.style.height) bottom.style.height = clamp(parseFloat(bottom.style.height)) + 'px'; });
+})();
+
 $('#policy').value = store.get('policy', 'skip_exists');
 S.highlight = store.get('highlight', false);
 $('#policy').onchange = e => store.set('policy', e.target.value);
