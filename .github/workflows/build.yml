@@ -171,7 +171,14 @@ jobs:
         env:
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
         run: |
-          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+          case "$GPG_PRIVATE_KEY" in
+            *"BEGIN PGP PRIVATE KEY BLOCK"*) ;;
+            *) echo "::error::The GPG_PRIVATE_KEY secret does not contain a private key (it must start with -----BEGIN PGP PRIVATE KEY BLOCK-----). Update the secret and re-run."; exit 1 ;;
+          esac
+          printf '%s\n' "$GPG_PRIVATE_KEY" | gpg --batch --import
+          if [ "$(gpg --list-secret-keys --with-colons | grep -c '^sec')" = "0" ]; then
+            echo "::error::GPG_PRIVATE_KEY could not be imported as a secret key. Update the secret and re-run."; exit 1
+          fi
           for f in SHA256SUMS.txt FileBridge-Linux.tar.gz; do
             gpg --batch --yes --pinentry-mode loopback --armor --detach-sign "$f"
           done
