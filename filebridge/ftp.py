@@ -436,8 +436,8 @@ class FtpRemote(Remote):
             self.sftp = self._client()
         except ftplib.error_perm as e:
             msg = str(e)
-            if msg.startswith('530'):
-                raise ApiError('Login failed: wrong username, password or key.')
+            if msg.startswith('530'):  # keep the server's own words: it may be a ban or a connection limit
+                raise ApiError(f'Login failed: wrong username, password or key. Server: {msg}')
             if s.get('encryption') == 'explicit' and msg[:3] in ('500', '502', '504', '534'):
                 raise ApiError(f'This server does not support FTP over TLS ({msg}). Choose '
                                f'"Use explicit FTP over TLS if available" or "Only use plain FTP".')

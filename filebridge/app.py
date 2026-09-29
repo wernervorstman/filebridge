@@ -354,7 +354,8 @@ class App:
             r.connect()
         except ApiError as e:
             if str(e).startswith('Login failed') and auth in ('password', 'ask'):
-                self.log(f'Login failed for {site["username"]}@{site["host"]}', 'error')
+                said = str(e).split('Server: ', 1)[1] if 'Server: ' in str(e) else ''
+                self.log(f'Login failed for {site["username"]}@{site["host"]}' + (f' – server: {said}' if said else ''), 'error')
                 raise ApiError('NEED_PASSWORD:' + str(e))
             raise
         self._tab_seq += 1
