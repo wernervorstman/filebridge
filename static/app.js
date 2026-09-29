@@ -1092,6 +1092,7 @@ function watchJob(id, fn) {
 let pollTimer = null;
 function kickPoll() { clearTimeout(pollTimer); pollTimer = setTimeout(poll, 150); }
 async function poll() {
+  if (S.quit) return;  // FileBridge was closed with Quit
   let active = false;
   try {
     const r = await api('jobs');
@@ -1517,6 +1518,27 @@ async function openSettings() {
   } catch (e) { toast(e.message, 'error'); }
 }
 $('#btnSettings').onclick = openSettings;
+
+/* ---------------------------------------------------------------- quit */
+async function quitApp() {
+  let busy = 0, unsent = 0;
+  try {
+    const r = await api('jobs');
+    busy = r.jobs.filter(j => j.status === 'running' || j.status === 'queued').length;
+    unsent = (r.edits || []).filter(x => x.state === 'changed' || x.state === 'uploading').length;
+  } catch (e) { /* ask anyway */ }
+  const warn = [busy && `${busy} transfer${busy > 1 ? 's are' : ' is'} still running and will be cancelled.`,
+    unsent && `${unsent} edited file${unsent > 1 ? 's have' : ' has'} changes that are not uploaded yet.`].filter(Boolean);
+  if (!await confirmBox('Quit FileBridge', warn.length ? warn.map(esc).join('<br>') + '<br><br>Quit anyway?'
+    : 'Close FileBridge and all connections?', 'Quit', warn.length > 0)) return;
+  try { await api('quit'); } catch (e) { toast(e.message, 'error'); return; }
+  S.quit = true; clearTimeout(pollTimer);
+  const el = document.createElement('div');
+  el.className = 'quit-done';
+  el.innerHTML = '<h1>FileBridge is closed</h1><p>You can close this tab.</p>';
+  document.body.append(el);
+}
+$('#btnQuit').onclick = quitApp;
 
 /* ---------------------------------------------------------------- import from FileZilla */
 async function openFzImport(path) {

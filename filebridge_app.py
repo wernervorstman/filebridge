@@ -51,6 +51,7 @@ def main():
         text_select=True, background_color='#131410',
     )
     system.WINDOW = window
+    server.APP.quit_hook = window.destroy  # Quit button: webview.start() returns, then we clean up
     enable_os_drop(window)
     # Window icon: Windows needs an .ico (a .png crashes WinForms), Linux uses the .png,
     # macOS takes the icon from the app bundle.
@@ -68,8 +69,10 @@ def main():
         print(f'Could not open the app window ({e}); opening FileBridge in your browser.', flush=True)
         system.WINDOW = None
         webbrowser.open(url)
+        stopped = threading.Event()
+        server.APP.quit_hook = stopped.set
         try:
-            threading.Event().wait()  # keep serving until the process is stopped
+            stopped.wait()  # keep serving until Quit or the process is stopped
         except KeyboardInterrupt:
             pass
     finally:

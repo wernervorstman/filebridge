@@ -119,6 +119,7 @@ def main():
     args = ap.parse_args()
 
     httpd, url = create_server(args.port)
+    APP.quit_hook = httpd.shutdown  # Quit button: serve_forever() returns, then we clean up
     print(f'FileBridge is running at {url}\nClose this window (or press Ctrl+C) to stop.', flush=True)
     if not args.no_browser:
         webbrowser.open(url)

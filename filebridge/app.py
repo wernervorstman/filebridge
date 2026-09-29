@@ -30,6 +30,7 @@ class App:
         self.plugins = PluginManager(system.plugins_dir(), self.log)
         self.plugins.load()
         self.edits = EditManager(self)
+        self.quit_hook = None  # set by the launcher: closes the window (app) or stops the server (browser)
 
     # --- plumbing ---
     def log(self, msg, level='info'):
@@ -182,6 +183,16 @@ class App:
             raise ApiError('Only web addresses can be opened')
         import webbrowser
         webbrowser.open(url)
+
+    def api_quit(self, b):
+        """Close FileBridge (Quit button). Runs a moment later so this answer still reaches the page."""
+        if not self.quit_hook:
+            raise ApiError('Quitting is not available here')
+
+        def later():
+            time.sleep(0.3)
+            self.quit_hook()
+        threading.Thread(target=later, daemon=True).start()
 
     def api_update_check(self, b):
         if not self.settings.get('check_updates') and not b.get('force'):
