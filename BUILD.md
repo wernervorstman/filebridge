@@ -72,14 +72,14 @@ GitHub secret.
 |---|---|
 | `GPG_PRIVATE_KEY` | the complete contents of the private key file (`-----BEGIN PGP PRIVATE KEY BLOCK-----` …) |
 
-## First launch warnings (unsigned builds)
+## First launch warnings
+
+Official releases (1.2.4 and later) are signed: macOS with a Developer ID and notarized by Apple, Windows by DataLore
+(Certum). Builds you make yourself without the signing secrets are unsigned and get the usual warnings:
 
 - **macOS:** "FileBridge.app Not Opened – Apple could not verify…". Click **Done**, then
-  **System Settings → Privacy & Security → Open Anyway** (macOS 15 and later; on macOS 14 and earlier
-  right-click the app → **Open** → **Open**). This is needed once per version. To remove the warning for everyone, sign and notarize the
-  app with an Apple Developer ID ($99/year).
+  **System Settings → Privacy & Security → Open Anyway** (on macOS 14 and earlier: right-click the app → **Open** → **Open**).
 - **Windows:** SmartScreen shows "Windows protected your PC". Click **More info** → **Run anyway**.
-  Signing with a code-signing certificate removes this.
 
 ## Where FileBridge keeps its data
 

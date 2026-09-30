@@ -50,7 +50,7 @@ Plak dit blok letterlijk op de plek die hierboven beschreven staat:
             <a class="link" href="https://github.com/wernervorstman/filebridge/releases/latest/download/FileBridge.exe">Download voor Windows <span class="arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M6 13l6 6 6-6"/></svg></span></a>
             <a class="link" href="https://github.com/wernervorstman/filebridge/releases/latest/download/FileBridge-Linux.tar.gz">Download voor Linux <span class="arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M6 13l6 6 6-6"/></svg></span></a>
           </div>
-          <p class="note">Gratis en open source (MIT) · <a href="https://github.com/wernervorstman/filebridge" target="_blank" rel="noopener">broncode op GitHub</a>. De apps zijn niet ondertekend, dus macOS en Windows waarschuwen de eerste keer. <a href="https://github.com/wernervorstman/filebridge/blob/main/docs/INSTALL.md" target="_blank" rel="noopener">Installatie-instructies</a> (Engels) voor macOS, Windows en Linux.</p>
+          <p class="note">Gratis en open source (MIT) · <a href="https://github.com/wernervorstman/filebridge" target="_blank" rel="noopener">broncode op GitHub</a>. De apps zijn digitaal ondertekend: Windows door DataLore, macOS met een Apple Developer ID en gecontroleerd door Apple, zodat ze zonder waarschuwing over een onbekende maker openen. <a href="https://github.com/wernervorstman/filebridge/blob/main/docs/INSTALL.md" target="_blank" rel="noopener">Installatie-instructies</a> (Engels) voor macOS, Windows en Linux.</p>
         </div>
       </article>
 ```

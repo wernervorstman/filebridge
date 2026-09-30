@@ -1,13 +1,17 @@
 # Installing and using FileBridge
 
-FileBridge is free and open source. The apps are **not signed** with a paid Apple or Microsoft certificate.
-That is why macOS and Windows warn you the first time you open FileBridge. This is expected: the system doesn't
-know who made the app, not because something is wrong with it. Below you'll find, for each system, how to open
-FileBridge safely anyway.
+FileBridge is free and open source. Since version 1.2.4 the apps are **digitally signed**:
+
+- **macOS:** signed with an Apple Developer ID and **notarized** by Apple (checked for malware), so it opens without
+  a warning.
+- **Windows:** signed by **DataLore** with a Certum code signing certificate, so Windows shows DataLore as the
+  publisher.
+
+Signing proves the file comes from DataLore and hasn't been changed since.
 
 Only download FileBridge from the official places: the GitHub releases page
 (<https://github.com/wernervorstman/filebridge/releases/latest>) or the links on datalore.wernervorstman.nl.
-If you got the file from someone else, don't bypass the warnings this way.
+If you got the file from someone else, check the publisher before you open it.
 
 | System | File | Runs on |
 |---|---|---|
@@ -29,28 +33,14 @@ Always start FileBridge from **Applications**, not from the disk image or the Do
 
 ### Opening it the first time
 
-Double-click FileBridge in Applications. macOS says:
+Double-click FileBridge in Applications. macOS asks once:
 
-> "FileBridge.app" Not Opened — Apple could not verify "FileBridge.app" is free of malware…
+> "FileBridge" is an app downloaded from the Internet. Are you sure you want to open it?
 
-1. Click **Done**. Do **not** click *Move to Bin*.
-2. Open **System Settings → Privacy & Security**.
-3. Scroll down to **Security**. You'll see *"FileBridge.app" was blocked…*. Click **Open Anyway**.
-4. Confirm with your password or Touch ID, then click **Open** once more.
+Click **Open**. That's all: Apple has checked this app (notarized).
 
-You only need to do this once per version. On macOS 14 Sonoma and earlier you can also right-click the app →
-**Open** → **Open**.
-
-<details>
-<summary>Advanced: using Terminal</summary>
-
-You can also remove the "downloaded from the internet" flag in Terminal. Only do this for a FileBridge you
-downloaded from the official places:
-
-```bash
-xattr -dr com.apple.quarantine /Applications/FileBridge.app
-```
-</details>
+Versions before 1.2.4 were not signed. If you still use one, macOS blocks it with *"Apple could not verify…"*. Update
+to the latest version instead of working around the warning.
 
 ### Keychain prompts
 
@@ -63,8 +53,8 @@ These are two separate prompts for two keychain items; both belong to FileBridge
 (the one you log in with) and click **Always Allow**, not *Allow*. Then macOS won't ask again on every
 connection.
 
-After a **new version** of FileBridge, macOS asks once more: without a certificate, macOS can't tell that the new
-version comes from the same developer. Choose **Always Allow** again.
+After updating from a version before 1.2.4, macOS may ask once more, because those versions weren't signed. Choose
+**Always Allow** again.
 
 ### Folder access
 
@@ -90,18 +80,14 @@ blank, install the *WebView2 Runtime* from Microsoft's website.
 
 ### Opening it the first time
 
-Double-click `FileBridge.exe`. Windows shows a blue window:
+Double-click `FileBridge.exe`. You can check the signature first: right-click the file → **Properties** →
+**Digital Signatures**. It should say **DataLore**.
 
-> Windows protected your PC — Microsoft Defender SmartScreen prevented an unrecognized app from starting.
+Shortly after a new version is released, SmartScreen can still show a blue *"Windows protected your PC"* window,
+because Microsoft hasn't seen many downloads of that version yet. It lists **Publisher: DataLore**. Click
+**More info** → **Run anyway**. This warning disappears once more people have downloaded the version.
 
-1. Click **More info**.
-2. Click **Run anyway**.
-
-You only need to do this once per version.
-
-Does your antivirus (for example Windows Defender) flag FileBridge? Apps built with PyInstaller that aren't
-signed are sometimes flagged by mistake. Check that you downloaded the file from the official places, then choose
-**Allow on device** for the alert in Windows Security.
+If a warning says *Unknown publisher*, the file is not an official FileBridge: don't open it.
 
 ### Passwords
 
@@ -165,9 +151,8 @@ The [README](../README.md) explains all features.
 
 ## Updating to a new version
 
-- **macOS:** drag the new FileBridge into Applications and choose **Replace**. Then open it again via
-  *Privacy & Security → Open Anyway*, and choose **Always Allow** again at the keychain prompt.
-- **Windows:** replace `FileBridge.exe` with the new version and choose **Run anyway** again at SmartScreen.
+- **macOS:** drag the new FileBridge into Applications and choose **Replace**.
+- **Windows:** replace `FileBridge.exe` with the new version.
 - **Linux:** replace the file in `~/.local/bin`.
 
 Your sites and passwords are kept; they are not stored inside the app.
@@ -187,7 +172,7 @@ Your sites and passwords are kept; they are not stored inside the app.
 
 | Problem | Solution |
 |---|---|
-| macOS: *"is damaged and can't be opened"* | The download is incomplete or the app still has the download flag. Download again, or use the Terminal command above. |
+| macOS: *"is damaged and can't be opened"* | The download is incomplete. Download it again from the official places. |
 | macOS: keeps asking for the keychain password | Click **Always Allow** instead of *Allow*. If it keeps happening, delete the FileBridge items in Keychain Access and save the password again. |
 | macOS: doesn't run on an Intel Mac | The app is built for Apple silicon. Run FileBridge from the source code instead (see the README). |
 | Windows: blank window | Install the Microsoft Edge WebView2 Runtime. |
