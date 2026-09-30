@@ -104,6 +104,17 @@ def _version_tuple(v):
     return tuple(parts)
 
 
+def _https_context():
+    """Verify HTTPS with the system's own certificates (macOS Keychain / Windows store). The packaged app
+    has no certificate file of its own, so Python's default context can't verify anything there."""
+    import ssl
+    try:
+        import truststore
+        return truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    except ImportError:
+        return ssl.create_default_context()
+
+
 def check_update(force=False):
     """{'current', 'latest', 'newer', 'url'} from GitHub, cached for 6 hours. Never raises."""
     with _lock:
@@ -113,7 +124,7 @@ def check_update(force=False):
     try:
         req = urllib.request.Request(RELEASES_API, headers={'User-Agent': f'FileBridge/{__version__}',
                                                             'Accept': 'application/vnd.github+json'})
-        with urllib.request.urlopen(req, timeout=8) as r:
+        with urllib.request.urlopen(req, timeout=8, context=_https_context()) as r:
             rel = json.load(r)
         tag = rel.get('tag_name') or ''
         data.update(latest=tag.lstrip('vV'), url=rel.get('html_url'),
