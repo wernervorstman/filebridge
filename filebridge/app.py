@@ -4,13 +4,13 @@ import posixpath
 import threading
 import time
 
-from . import __version__, deploy, extract, filezilla_import, localfs, perms, sync, system, transfer, webinfo
+from . import __version__, deploy, diagnose, extract, filezilla_import, localfs, perms, sync, system, transfer, webinfo
 from .editing import EditManager
 from .settings import Settings
 from .common import ApiError
 from .jobs import JobManager
 from .plugins import PluginContext, PluginManager
-from .ftp import FtpRemote
+from .ftp import FtpRemote, FtpTimeout
 from .remote import Remote
 from .sites import SiteStore
 
@@ -351,7 +351,12 @@ class App:
                  f'({"FTP" if is_ftp else "SFTP"}) …')
         r = (FtpRemote if is_ftp else Remote)(site, password, passphrase)
         try:
-            r.connect()
+            try:
+                r.connect()
+            except FtpTimeout as e:
+                if not site.get('fallback_sftp'):
+                    raise
+                r = self._sftp_fallback(site, password, passphrase, e)
         except ApiError as e:
             if str(e).startswith('Login failed') and auth in ('password', 'ask'):
                 said = str(e).split('Server: ', 1)[1] if 'Server: ' in str(e) else ''
@@ -374,6 +379,37 @@ class App:
             path = r.home()
         threading.Thread(target=r.can_exec, daemon=True).start()
         return {'status': self._status(), 'remote_path': path, 'sites': self.sites.list()}
+
+    def _sftp_fallback(self, site, password, passphrase, ftp_error):
+        """FTP didn't answer (blocked network?): connect to the same server with SFTP instead."""
+        port = int(site.get('fallback_port') or 22)
+        alt = {**site, 'protocol': 'sftp', 'port': port, 'username': site.get('fallback_user') or site['username'],
+               'auth': 'password' if site.get('auth') in ('password', 'ask') else site.get('auth')}
+        self.log(f'FTP did not answer – trying SFTP on port {port} as {alt["username"]} …', 'warn')
+        r = Remote(alt, password, passphrase)
+        try:
+            r.connect()
+        except ApiError as e:  # not a password prompt: the FTP password may simply not work for SSH
+            raise ApiError(f'{ftp_error} The SFTP fallback (port {port}) failed too: {e}')
+        return r
+
+    def api_site_test(self, b):
+        """Site Manager → Test connection: try the form's settings step by step (nothing is saved)."""
+        raw = dict(b.get('site') or {})
+        raw['name'] = raw.get('name') or 'test'
+        site = self.sites.clean(raw)
+        site['id'] = raw.get('id') or 'test'
+        sid = b.get('site_id')
+        password = b.get('password') or (self.sites.get_secret(sid, 'password') if sid else None)
+        passphrase = b.get('passphrase') or (self.sites.get_secret(sid, 'passphrase') if sid else None)
+        self.log(f'Testing connection to {site["host"]} …')
+        return diagnose.test_connection(site, password, passphrase, (Remote, FtpRemote))
+
+    def api_panel_detect(self, b):
+        panel = diagnose.detect_panel(b.get('host'))
+        return {'panel': panel, 'name': diagnose.PANEL_NAMES.get(panel, ''),
+                'hint': diagnose.USERNAME_HINT.get(panel, ''),
+                'suggest': diagnose.username_suggestion(panel, b.get('username'))}
 
     @staticmethod
     def _quick_site(q):

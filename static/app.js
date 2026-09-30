@@ -1631,6 +1631,7 @@ function openSiteManager(focusId) {
           <div class="sm-sep"></div>
           <label>Logon Type:</label><select name="auth"></select>
           <label data-auth="password ask key agent">User:</label><input name="username" data-auth="password ask key agent" spellcheck="false">
+          <div data-panelhint hidden></div><p class="muted sm-note sm-panelhint" data-panelhint hidden></p>
           <label data-auth="password">Password:</label><input name="password" type="password" autocomplete="new-password" data-auth="password" data-noenter="1">
           <label data-auth="key">Key file:</label><div class="with-btn" data-auth="key"><input name="key_path" placeholder="~/.ssh/id_ed25519"><button type="button" data-pick="file" data-start="~/.ssh" data-invisibles="1">Browse…</button></div>
           <label data-auth="key agent">Passphrase:</label><input name="passphrase" type="password" autocomplete="new-password" data-auth="key agent" placeholder="only if your key has one">
@@ -1644,6 +1645,15 @@ function openSiteManager(focusId) {
           <label class="sm-top">Web addresses:</label><textarea name="web_map" rows="3" class="mono" spellcheck="false" placeholder="/public_html = https://example.com"></textarea>
           <div></div><p class="muted sm-note">One per line: server folder = web address. Used for “Open in browser” / “Copy URL”, and to warn when archives or backups end up in a public folder. Subfolders follow automatically; add a line for a subfolder that has its own address.</p>
           <div></div><p class="muted sm-note">These folders open automatically when you connect to this site.</p>
+          <div class="sm-wide" data-proto="ftp">
+            <div class="sm-group">When FTP is blocked</div>
+            <label class="check"><input type="checkbox" name="fallback_sftp"> If FTP doesn't answer (e.g. blocked on public wifi), connect with SFTP instead</label>
+            <div class="sm-upperm">
+              <label>SFTP port <input name="fallback_port" class="mono" placeholder="22" inputmode="numeric"></label>
+              <label>SFTP user <input name="fallback_user" placeholder="same as FTP user" spellcheck="false"></label>
+            </div>
+            <p class="muted sm-note">Uses the same password. Your hosting provider tells you the SSH port and user (e.g. the panel login); SSH access must be switched on for your account.</p>
+          </div>
         </div>
         <div class="sm-page" data-page="transfer">
           <div class="sm-wide">
@@ -1693,6 +1703,9 @@ function openSiteManager(focusId) {
     }
     s.transfer_mode = E('transfer_mode').value || 'default';
     s.ftps_insecure = E('ftps_insecure').checked;
+    s.fallback_sftp = E('fallback_sftp').checked;
+    s.fallback_port = E('fallback_port').value.trim();
+    s.fallback_user = E('fallback_user').value.trim();
     s.upload_perms = E('upload_perms').checked;
     s.upload_dir_mode = E('upload_dir_mode').value.trim();
     s.upload_file_mode = E('upload_file_mode').value.trim();
@@ -1736,6 +1749,9 @@ function openSiteManager(focusId) {
     E('passphrase').placeholder = sec.passphrase || s.has_passphrase ? '•••••••• (saved)' : 'only if your key has one';
     E('transfer_mode').value = s.transfer_mode || 'default';
     E('ftps_insecure').checked = !!s.ftps_insecure;
+    E('fallback_sftp').checked = !!s.fallback_sftp;
+    E('fallback_port').value = s.fallback_port && +s.fallback_port !== 22 ? s.fallback_port : '';
+    E('fallback_user').value = s.fallback_user || '';
     E('upload_perms').checked = !!s.upload_perms;
     E('upload_dir_mode').value = s.upload_dir_mode ?? '0755';
     E('upload_file_mode').value = s.upload_file_mode ?? '0644';
@@ -1744,6 +1760,61 @@ function openSiteManager(focusId) {
     E('cs_mode').value = ['auto', 'utf-8'].includes(cs) ? cs : 'custom';
     E('charset_custom').value = ['auto', 'utf-8'].includes(cs) ? '' : cs;
     applyVis();
+    panelHint();
+  }
+
+  // --- hosting panel: suggest the right FTP username format ---
+  const panels = new Map();  // host -> detection result (or a pending promise)
+  async function panelHint() {
+    const s = sel?.type === 'site' && siteById(sel.id);
+    const boxes = $$('[data-panelhint]', el);
+    const host = E('host').value.trim().toLowerCase();
+    boxes.forEach(b => { b.hidden = true; });
+    if (!s || E('protocol').value !== 'ftp' || !host) return;
+    if (!panels.has(host)) panels.set(host, api('panel_detect', { host }).catch(() => ({})));
+    const r = await panels.get(host);
+    if (!r?.panel || E('host').value.trim().toLowerCase() !== host || E('protocol').value !== 'ftp') return;
+    const user = E('username').value.trim();
+    const better = r.panel === 'plesk' && user.includes('@') ? user.split('@')[0] : '';
+    const p = boxes[1];
+    p.innerHTML = esc(r.hint) + (better ? ` <button type="button" class="small" data-fixuser="${esc(better)}">Use “${esc(better)}”</button>` : '');
+    boxes.forEach(b => { b.hidden = false; });
+  }
+
+  // --- Test connection ---
+  async function testConnection() {
+    readForm();
+    const s = sel?.type === 'site' && siteById(sel.id);
+    if (!s) return toast('Select a site to test');
+    const sid = s.id.startsWith('new-') ? s.copy_from : s.id;
+    let password = secrets[s.id]?.password;
+    const saved = sid && S.sites.find(x => x.id === sid)?.has_password;
+    if (['password', 'ask'].includes(s.auth) && !password && !saved) {
+      password = await askText('Test connection', `Password for ${s.username}@${s.host}`, '', 'password');
+      if (password == null) return;
+    }
+    let closeWait;
+    modal({ title: 'Test connection', body: `<p class="muted">Testing ${esc(s.host)} … this can take up to half a minute.</p>`, buttons: [], onOpen(m, c) { closeWait = c; } });
+    let r;
+    try { r = await api('site_test', { site: s, site_id: sid, password, passphrase: secrets[s.id]?.passphrase }); }
+    catch (e) { r = { steps: [{ name: 'Settings', ok: false, detail: e.message }], fixes: [] }; }
+    closeWait(null);
+    const mark = ok => ok === true ? '<b class="t-ok">✓</b>' : ok === false ? '<b class="t-err">✗</b>' : '<b class="muted">•</b>';
+    const allOk = r.steps.length && r.steps.every(x => x.ok !== false);
+    const body = `<p>${allOk ? '<b class="t-ok">Everything works.</b>' : '<b class="t-err">Something is wrong – see the red step.</b>'}</p>
+      <div class="ctest">${r.steps.map(x => `<div>${mark(x.ok)}</div><div><b>${esc(x.name)}</b><br><span class="muted">${esc(x.detail)}</span></div>`).join('')}</div>
+      ${r.fixes.length ? `<p class="muted sm-note">Suggested fix:</p><div class="row">${r.fixes.map((f, i) => `<button type="button" data-fix="${i}">${esc(f.label)}</button>`).join('')}</div>` : ''}`;
+    modal({ title: 'Test connection', body, size: 'mid', buttons: [{ label: 'Close', value: null, primary: true }],
+      onOpen(m, close) {
+        m.addEventListener('click', e => {
+          const b = e.target.closest('[data-fix]');
+          if (!b) return;
+          Object.assign(s, r.fixes[+b.dataset.fix].patch);
+          fillForm();
+          toast('Changed – click Test connection again, or OK to save', 'ok');
+          close(null);
+        });
+      } });
   }
 
   // --- tree ---
@@ -1869,6 +1940,7 @@ function openSiteManager(focusId) {
         await openFzImport();
         openSiteManager();
       } },
+      { label: 'Test connection', onClick: () => testConnection() },
       { label: 'Connect', primary: true, onClick: async (m, close) => {
         if (sel?.type !== 'site') return toast('Select a site to connect to');
         const r = await commit();
@@ -1912,6 +1984,16 @@ function openSiteManager(focusId) {
       E('protocol').addEventListener('change', () => { setLogonOptions(E('protocol').value); applyVis(); });
       E('encryption').addEventListener('change', applyVis);
       E('auth').addEventListener('change', applyVis);
+      E('host').addEventListener('change', panelHint);
+      E('protocol').addEventListener('change', panelHint);
+      E('username').addEventListener('change', panelHint);
+      el.addEventListener('click', e => {
+        const b = e.target.closest('[data-fixuser]');
+        if (!b) return;
+        E('username').value = b.dataset.fixuser;
+        readForm();
+        panelHint();
+      });
       E('charset_custom').addEventListener('input', () => { E('cs_mode').value = 'custom'; });
       ['upload_dir_mode', 'upload_file_mode'].forEach(n => E(n).addEventListener('input', () => { E('upload_perms').checked = true; }));
 

@@ -16,7 +16,8 @@ SERVICE = 'FileBridge'
 FIELDS = ('id', 'name', 'folder', 'protocol', 'host', 'port', 'encryption', 'auth', 'username', 'key_path',
           'color', 'comments', 'local_dir', 'remote_dir', 'transfer_mode', 'charset', 'ftps_insecure',
           'upload_perms', 'upload_dir_mode', 'upload_file_mode', 'max_connections', 'web_map',
-          'bookmarks', 'deploy', 'has_password', 'has_passphrase')
+          'bookmarks', 'deploy', 'has_password', 'has_passphrase', 'fallback_sftp', 'fallback_port',
+          'fallback_user')
 PROTOCOLS = ('sftp', 'ftp')
 ENCRYPTIONS = ('auto', 'explicit', 'implicit', 'plain')
 AUTHS = {'sftp': ('password', 'ask', 'key', 'agent'), 'ftp': ('password', 'ask', 'anonymous')}
@@ -101,6 +102,13 @@ class SiteStore:
                 raise ApiError(f'Unknown character set "{c["charset"]}" for {label}')
         c['charset'] = c['charset'] or 'auto'
         c['ftps_insecure'] = bool(c.get('ftps_insecure'))
+        c['fallback_sftp'] = bool(c.get('fallback_sftp')) and c['protocol'] == 'ftp'
+        c['fallback_user'] = (c.get('fallback_user') or '').strip()
+        try:
+            c['fallback_port'] = int(c.get('fallback_port') or 22)
+            assert 0 < c['fallback_port'] < 65536
+        except (ValueError, AssertionError):
+            raise ApiError(f'The SFTP fallback port of {label} must be a number between 1 and 65535')
         c['upload_perms'] = bool(c.get('upload_perms'))
         from .webinfo import clean_web_map
         c['web_map'] = clean_web_map(c.get('web_map') or [])

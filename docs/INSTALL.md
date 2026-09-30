@@ -177,6 +177,6 @@ Your sites and passwords are kept; they are not stored inside the app.
 | macOS: doesn't run on an Intel Mac | The app is built for Apple silicon. Run FileBridge from the source code instead (see the README). |
 | Windows: blank window | Install the Microsoft Edge WebView2 Runtime. |
 | Linux: *"GLIBC … not found"* | Your Linux version is too old. Use Ubuntu 22.04 or newer, or run from the source code. |
-| FTP: *timed out* | The network you're on probably blocks FTP (port 21); public, hotel and work wifi often do. Use SFTP (your hosting provider gives you the SSH port) or another network, such as your phone's hotspot. |
+| FTP: *timed out* | The network you're on probably blocks FTP (port 21); public, hotel and work wifi often do. Use SFTP (your hosting provider gives you the SSH port) or another network, such as your phone's hotspot. You can also let FileBridge switch automatically: **Site Manager → Advanced → When FTP is blocked**. |
 | FTP: *530 Login incorrect* with a username like `ftp1@domain.nl` | On Plesk hosting (e.g. Cloud86) the username is just the account name from the panel, without `@domain`: `ftp1`. On DirectAdmin hosting it is `name@domain`. |
-| Can't connect | Check host, port and protocol. For FTP over TLS on shared hosting, use the hosting server's name as Host; FileBridge tells you the right name if it doesn't match. |
+| Can't connect | Click **Test connection** in the Site Manager: it shows which step fails. Check host, port and protocol. For FTP over TLS on shared hosting, use the hosting server's name as Host; FileBridge tells you the right name if it doesn't match. |

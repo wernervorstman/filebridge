@@ -480,3 +480,11 @@ body.col-resizing, body.col-resizing * { cursor: col-resize !important; user-sel
 .hsplit:hover::after, .row-resizing .hsplit::after { background: var(--dl-green); }
 body.row-resizing, body.row-resizing * { cursor: row-resize !important; user-select: none !important; }
 .bottom { flex: none; }
+
+/* Site Manager: connection test + hosting panel hint */
+.ctest { display: grid; grid-template-columns: 22px 1fr; gap: 8px 6px; margin: 10px 0; }
+.ctest .muted { word-break: break-word; }
+.t-ok { color: var(--dl-green, #5FA83D); }
+.t-err { color: #E5484D; }
+.sm-panelhint { margin-top: -2px; }
+.sm-panelhint button { margin-left: 6px; }

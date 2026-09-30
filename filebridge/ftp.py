@@ -48,6 +48,10 @@ def charset_of(site):
         raise ApiError(f'Unknown character set: {cs}')
 
 
+class FtpTimeout(ApiError):
+    """The FTP server didn't answer at all (often: the network blocks FTP)."""
+
+
 class Attr:
     """Same fields as paramiko's SFTPAttributes."""
 
@@ -454,7 +458,7 @@ class FtpRemote(Remote):
                            f'(990 for implicit TLS). Leave Port empty to use the default.')
         except TimeoutError:  # includes socket.timeout: nothing answered at all
             p = s.get('port') or 21
-            raise ApiError(f'Could not connect to {s["host"]}: timed out. The network you are on may block FTP '
+            raise FtpTimeout(f'Could not connect to {s["host"]}: timed out. The network you are on may block FTP '
                            f'(port {p}) – public, hotel and work wifi often do. Try SFTP instead (your hosting '
                            f'provider gives you the SSH port), or another network such as your phone\'s hotspot.')
         except (OSError, EOFError, ftplib.Error) as e:
