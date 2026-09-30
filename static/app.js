@@ -1299,10 +1299,11 @@ async function connect(extra = {}) {
     if (e.message.startsWith('NEED_PASSWORD')) {
       const failed = e.message.includes(':');
       const said = e.message.includes('Server: ') ? e.message.split('Server: ')[1] : '';
+      const tip = e.message.includes(' Tip: ') ? e.message.split(' Tip: ')[1].split(' Server: ')[0] : '';
       const canSave = site.auth !== 'ask';
       const { value, el: m } = await modal({
         title: `Password for ${site.username}@${site.host}`,
-        body: `${failed ? `<div class="info-box err">The server rejected the login. Check the username and password and type it again.${said ? `<br><span class="muted">Server reply: ${esc(said)}</span>` : ''}</div>` : ''}
+        body: `${failed ? `<div class="info-box err">The server rejected the login. Check the username and password and type it again.${tip ? `<br>${esc(tip)}` : ''}${said ? `<br><span class="muted">Server reply: ${esc(said)}</span>` : ''}</div>` : ''}
                <label class="field">Password<input id="pw" type="password" autocomplete="off"></label>
                ${canSave ? `<label class="check"><input type="checkbox" id="pwSave" checked> Remember in ${esc(S.platform?.keychain || 'the system keychain')}</label>` : ''}`,
         buttons: [{ label: 'Cancel', value: null }, { label: 'Connect', value: 'ok', primary: true }],

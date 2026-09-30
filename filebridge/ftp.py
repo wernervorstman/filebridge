@@ -437,7 +437,11 @@ class FtpRemote(Remote):
         except ftplib.error_perm as e:
             msg = str(e)
             if msg.startswith('530'):  # keep the server's own words: it may be a ban or a connection limit
-                raise ApiError(f'Login failed: wrong username, password or key. Server: {msg}')
+                tip = ''
+                if '@' in (s.get('username') or ''):  # Plesk (e.g. Cloud86) wants the bare account name
+                    tip = (f' Tip: some hosting panels (Plesk) use the FTP account name without "@domain" – '
+                           f'try "{s["username"].split("@")[0]}" as username.')
+                raise ApiError(f'Login failed: wrong username, password or key.{tip} Server: {msg}')
             if s.get('encryption') == 'explicit' and msg[:3] in ('500', '502', '504', '534'):
                 raise ApiError(f'This server does not support FTP over TLS ({msg}). Choose '
                                f'"Use explicit FTP over TLS if available" or "Only use plain FTP".')
@@ -448,6 +452,11 @@ class FtpRemote(Remote):
             p = s.get('port') or 21
             raise ApiError(f'The server refused the connection on port {p}. FTP normally uses port 21 '
                            f'(990 for implicit TLS). Leave Port empty to use the default.')
+        except TimeoutError:  # includes socket.timeout: nothing answered at all
+            p = s.get('port') or 21
+            raise ApiError(f'Could not connect to {s["host"]}: timed out. The network you are on may block FTP '
+                           f'(port {p}) – public, hotel and work wifi often do. Try SFTP instead (your hosting '
+                           f'provider gives you the SSH port), or another network such as your phone\'s hotspot.')
         except (OSError, EOFError, ftplib.Error) as e:
             raise ApiError(f'Could not connect to {s["host"]}: {e}')
         sock = self.sftp.ftp.sock
