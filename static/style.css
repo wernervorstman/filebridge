@@ -488,3 +488,4 @@ body.row-resizing, body.row-resizing * { cursor: row-resize !important; user-sel
 .t-err { color: #E5484D; }
 .sm-panelhint { margin-top: -2px; }
 .sm-panelhint button { margin-left: 6px; }
+pre.notes { white-space: pre-wrap; max-height: 260px; overflow: auto; font-family: inherit; }

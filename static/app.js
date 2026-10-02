@@ -1521,6 +1521,27 @@ async function openSettings() {
 }
 $('#btnSettings').onclick = openSettings;
 
+/* ---------------------------------------------------------------- update notice */
+async function checkUpdate() {
+  let up;
+  try { up = (await api('update_check')).update; } catch (e) { return; }
+  if (!up?.newer) return;
+  const a = $('#updateLink');
+  a.hidden = false;
+  a.textContent = `Update available: v${up.latest}`;
+  a.onclick = e => { e.preventDefault(); api('open_url', { url: up.url }); };
+  if (store.get('update.told') === up.latest) return;  // tell about each new version once; the footer link stays
+  store.set('update.told', up.latest);
+  const { value } = await modal({
+    title: `FileBridge ${up.latest} is available`, size: 'mid',
+    body: `<p>You have version ${esc(up.current)}. Your sites and passwords are kept when you update.</p>
+      ${up.notes ? `<div class="sm-group">What's new</div><pre class="result notes">${esc(up.notes.replace(/\*\*|`/g, ''))}</pre>` : ''}
+      <p class="muted sm-note">Download the new version and replace the app. You can turn this check off in Settings → Updates.</p>`,
+    buttons: [{ label: 'Later', value: null }, { label: 'Open download page', value: 'ok', primary: true }],
+  });
+  if (value) api('open_url', { url: up.url });
+}
+
 /* ---------------------------------------------------------------- quit */
 async function quitApp() {
   let busy = 0, unsent = 0;
@@ -2347,14 +2368,8 @@ try { $('#year').textContent = new Date().getFullYear(); } catch { /* ignore */ 
   S.platform = r.platform || {};
   S.settings = r.settings || {};
   $('#appVersion').textContent = 'v' + r.version;
-  api('update_check').then(u => {
-    const up = u.update;
-    if (!up?.newer) return;
-    const a = $('#updateLink');
-    a.hidden = false;
-    a.textContent = `Update available: v${up.latest}`;
-    a.onclick = e => { e.preventDefault(); api('open_url', { url: up.url }); };
-  }).catch(() => {});
+  checkUpdate();
+  setInterval(checkUpdate, 4 * 3600 * 1000);  // also while the app stays open for days
   document.body.classList.toggle('in-app', !!S.platform.window);
   S.plugins = r.plugins;
   S.home = r.home;

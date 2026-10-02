@@ -116,11 +116,11 @@ def _https_context():
 
 
 def check_update(force=False):
-    """{'current', 'latest', 'newer', 'url'} from GitHub, cached for 6 hours. Never raises."""
+    """{'current', 'latest', 'newer', 'url', 'notes'} from GitHub, cached for 3 hours. Never raises."""
     with _lock:
-        if not force and _cache['data'] and time.time() - _cache['at'] < 6 * 3600:
+        if not force and _cache['data'] and time.time() - _cache['at'] < 3 * 3600:
             return _cache['data']
-    data = {'current': __version__, 'latest': None, 'newer': False, 'url': None}
+    data = {'current': __version__, 'latest': None, 'newer': False, 'url': None, 'notes': ''}
     try:
         req = urllib.request.Request(RELEASES_API, headers={'User-Agent': f'FileBridge/{__version__}',
                                                             'Accept': 'application/vnd.github+json'})
@@ -128,7 +128,8 @@ def check_update(force=False):
             rel = json.load(r)
         tag = rel.get('tag_name') or ''
         data.update(latest=tag.lstrip('vV'), url=rel.get('html_url'),
-                    newer=_version_tuple(tag) > _version_tuple(__version__))
+                    newer=_version_tuple(tag) > _version_tuple(__version__),
+                    notes=(rel.get('body') or '').strip()[:3000])
     except Exception:
         pass  # offline or GitHub unreachable: just no update notice
     with _lock:

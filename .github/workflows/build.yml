@@ -154,10 +154,20 @@ jobs:
     env:
       HAS_GPG: ${{ secrets.GPG_PRIVATE_KEY != '' }}
     steps:
+      - uses: actions/checkout@v7
+
       - uses: actions/download-artifact@v8
         with:
           path: dist
           merge-multiple: true
+
+      # The section of CHANGELOG.md for this version becomes the release text (shown in the app's update notice)
+      - name: Release notes
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          awk -v v="## $VERSION" '$0 == v {on=1; next} /^## / {on=0} on' CHANGELOG.md | sed -e '/./,$!d' > "$RUNNER_TEMP/notes.md"
+          [ -s "$RUNNER_TEMP/notes.md" ] || echo "See the README for what FileBridge can do." > "$RUNNER_TEMP/notes.md"
+          cat "$RUNNER_TEMP/notes.md"
 
       - name: Checksums
         working-directory: dist
@@ -188,3 +198,4 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           files: dist/*
+          body_path: ${{ runner.temp }}/notes.md
