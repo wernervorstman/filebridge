@@ -27,6 +27,7 @@ function fmtDate(t) {
   if (!t) return '';
   return new Date(t * 1000).toLocaleString(undefined, { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
+const typeKey = e => e.dir ? '(folders)' : (e.ext ? '.' + e.ext : '(no extension)');
 const typeLabel = e => e.dir ? 'Folder' : (e.ext ? e.ext.toUpperCase() + ' file' : 'File');
 const joinPath = (dir, name) => (dir.endsWith('/') ? dir : dir + '/') + name;
 const parentOf = p => { const q = p.replace(/\/+$/, ''); const i = q.lastIndexOf('/'); return i <= 0 ? '/' : q.slice(0, i); };
@@ -177,6 +178,7 @@ class Pane {
     this.sortKey = store.get(side + '.sortKey', 'name');
     this.sortDir = store.get(side + '.sortDir', 1);
     this.filter = '';
+    this.typeFilter = new Set();  // Select type: show only these kinds ('.jpg', '(folders)', …)
     this.showHidden = store.get(side + '.hidden', false);
     this.build();
   }
@@ -227,7 +229,7 @@ class Pane {
         <div class="empty" hidden></div>
       </div>
       </div>
-      <div class="pane-foot"><span class="count"></span><span class="selinfo"></span><span class="diffinfo"></span></div>`;
+      <div class="pane-foot"><span class="count"></span><span class="selinfo"></span><span class="typeinfo"></span><span class="diffinfo"></span></div>`;
 
     this.list = $('.list', this.el);
     this.tbody = $('tbody', this.el);
@@ -348,7 +350,7 @@ class Pane {
       this.entries = r.entries;
       this.filtered = r.filtered || 0;
       this.localParent = r.parent ?? null;
-      if (changed) { this.filter = ''; $('.filter', this.el).value = ''; }
+      if (changed) { this.filter = ''; $('.filter', this.el).value = ''; this.typeFilter.clear(); }
       if (changed || !keepSelection) this.sel = new Set();
       else this.sel = new Set([...this.sel].filter(n => this.byName(n)));
       if (!this.remote) store.set('localPath', this.path);
@@ -362,10 +364,11 @@ class Pane {
   }
   refresh() { this.treeCache.delete(this.path); return this.load(this.path, true); }
 
-  visible() {
+  visible(allTypes = false) {
     let list = this.entries;
     if (!this.showHidden) list = list.filter(e => !e.hidden);
     if (this.filter) list = list.filter(e => e.name.toLowerCase().includes(this.filter));
+    if (this.typeFilter.size && !allTypes) list = list.filter(e => this.typeFilter.has(typeKey(e)));
     const k = this.sortKey, d = this.sortDir;
     const byName = (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
     const cmp = {
@@ -529,7 +532,7 @@ class Pane {
     }
     this.tbody.innerHTML = html;
     empty.hidden = vis.length > 0;
-    empty.textContent = this.filter ? 'No matches' : 'Empty folder';
+    empty.textContent = this.filter || this.typeFilter.size ? 'No matches' : 'Empty folder';
     const all = $('input.all', this.el);
     all.checked = vis.length > 0 && vis.every(x => this.sel.has(x.name));
     all.indeterminate = !all.checked && vis.some(x => this.sel.has(x.name));
@@ -543,6 +546,9 @@ class Pane {
     const files = vis.filter(e => !e.dir).length;
     $('.count', this.el).textContent = (vis.length ? `${vis.length - files} folders, ${files} files` : '')
       + (this.filtered && !(this.remote && !S.status.connected) ? ` · ${this.filtered} filtered` : '');
+    const ti = $('.typeinfo', this.el);
+    ti.innerHTML = this.typeFilter.size ? `<span class="type-on">Showing only ${esc([...this.typeFilter].join(', '))} <a href="#">show all</a></span>` : '';
+    ti.querySelector('a')?.addEventListener('click', e => { e.preventDefault(); this.typeFilter.clear(); this.render(); });
     const size = sel.reduce((n, e) => n + (e.size || 0), 0);
     $('.selinfo', this.el).textContent = sel.length ? `${sel.length} selected${size ? ' (' + fmtSize(size) + ')' : ''}` : '';
     const dc = this.diffCount;
@@ -726,27 +732,35 @@ class Pane {
     showMenu(x, y, items);
   }
 
+  // Select type: ticks all files of a type and shows only the chosen types; choose it again to undo
   typesMenu(x, y) {
-    const vis = this.visible();
+    const vis = this.visible(true);
     const groups = {};
-    for (const e of vis) {
-      const k = e.dir ? '(folders)' : (e.ext ? '.' + e.ext : '(no extension)');
-      (groups[k] ||= []).push(e.name);
-    }
+    for (const e of vis) (groups[typeKey(e)] ||= []).push(e.name);
     const keys = Object.keys(groups).sort((a, b) => groups[b].length - groups[a].length || a.localeCompare(b));
     if (!keys.length) return toast('Nothing to select');
-    const items = [{ header: 'Click to add / remove from selection' }];
+    const showAll = () => { this.typeFilter.clear(); };
+    const items = [{ header: 'Select and show only this type' }];
     for (const k of keys) {
       const names = groups[k];
-      const allSel = names.every(n => this.sel.has(n));
+      const on = this.typeFilter.has(k);
       items.push({
-        label: `${allSel ? '✓ ' : ''}${k}`, hint: String(names.length),
-        action: () => { names.forEach(n => allSel ? this.sel.delete(n) : this.sel.add(n)); this.render(); },
+        label: `${on ? '✓ ' : ''}${k}`, hint: String(names.length),
+        action: () => {
+          if (on) { this.typeFilter.delete(k); names.forEach(n => this.sel.delete(n)); }
+          else {
+            if (!this.typeFilter.size) this.sel = new Set();  // never keep hidden files selected (think of Delete)
+            this.typeFilter.add(k); names.forEach(n => this.sel.add(n));
+          }
+          this.render();
+        },
       });
     }
-    items.push({ sep: true }, { label: 'Select all', action: () => { this.sel = new Set(vis.map(x => x.name)); this.render(); } },
-      { label: 'Invert selection', action: () => { this.sel = new Set(vis.filter(x => !this.sel.has(x.name)).map(x => x.name)); this.render(); } },
-      { label: 'Clear selection', action: () => { this.sel = new Set(); this.render(); } });
+    items.push({ sep: true },
+      { label: 'Select all', action: () => { showAll(); this.sel = new Set(vis.map(x => x.name)); this.render(); } },
+      { label: 'Invert selection', action: () => { showAll(); this.sel = new Set(vis.filter(x => !this.sel.has(x.name)).map(x => x.name)); this.render(); } },
+      { label: 'Clear selection', action: () => { showAll(); this.sel = new Set(); this.render(); } });
+    if (this.typeFilter.size) items.push({ label: 'Show all types again', action: () => { showAll(); this.render(); } });
     showMenu(x, y, items);
   }
 

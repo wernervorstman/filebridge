@@ -491,3 +491,5 @@ body.row-resizing, body.row-resizing * { cursor: row-resize !important; user-sel
 .sm-panelhint { margin-top: -2px; }
 .sm-panelhint button { margin-left: 6px; }
 pre.notes { white-space: pre-wrap; max-height: 260px; overflow: auto; font-family: inherit; }
+.type-on { color: var(--dl-green, #5FA83D); font-weight: 600; margin-left: 10px; }
+.type-on a { color: inherit; margin-left: 4px; }
