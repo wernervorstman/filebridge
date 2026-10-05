@@ -216,6 +216,8 @@ pre.result { background: var(--panel-2); padding: 10px; border-radius: 6px; whit
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip { border: 1px solid var(--border); border-radius: 12px; padding: 1px 9px; font-size: 12px; cursor: pointer; user-select: none; }
 .chip.off { opacity: .4; }
+.chip.on { border-color: var(--dl-green, #5FA83D); box-shadow: 0 0 0 2px rgba(95, 168, 61, .35); }
+.cmp-quick { display: flex; align-items: center; gap: 8px; margin: 8px 0; flex-wrap: wrap; }
 .st { font-size: 11px; padding: 1px 7px; border-radius: 9px; white-space: nowrap; }
 .st-same { background: var(--panel-2); color: var(--muted); }
 .st-local_only, .st-local_newer { background: #dbeafe; color: #1e40af; }

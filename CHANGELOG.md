@@ -5,6 +5,8 @@ and of the update notice in the app, so keep it short and written for users.
 
 ## 1.2.8
 - The update notice now also checks while FileBridge stays open, and tells you once what is new in a version.
+- Compare & sync: click a label such as "Only on server" to tick all those files, then **Upload checked** or
+  **Download checked** transfers them right away.
 
 ## 1.2.7
 - Footer shows "by DataLore".

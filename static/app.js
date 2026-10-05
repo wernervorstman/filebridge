@@ -2080,6 +2080,11 @@ function defaultAction(status, dir, mirror) {
   }
   return { local_only: 'upload', local_newer: 'upload', remote_only: 'download', remote_newer: 'download' }[status] || 'skip';
 }
+// what "select this kind" does with a file: the obvious transfer for its status
+function naturalAction(status, dir) {
+  return { local_only: 'upload', local_newer: 'upload', remote_only: 'download', remote_newer: 'download' }[status]
+    || (dir === 'down' ? 'download' : 'upload');
+}
 function allowedActions(status) {
   return {
     local_only: ['skip', 'upload', 'delete_local'],
@@ -2123,6 +2128,7 @@ function openCompare() {
         data.dir = store.get('syncDir', 'up');
         data.mirror = false;
         data.hidden = new Set(['same']);
+        data.sel = new Set();  // labels clicked at the top: show and tick only these kinds
         data.rows.forEach(row => { row.action = defaultAction(row.status, data.dir, false); });
         renderCompare(el);
       });
@@ -2133,8 +2139,11 @@ function openCompare() {
     const out = $('#cmpOut', el);
     const c = data.counts;
     const chips = Object.keys(STATUS_LABEL).filter(k => c[k]).map(k =>
-      `<span class="chip ${data.hidden.has(k) ? 'off' : ''}" data-st="${k}"><span class="st st-${k}">${STATUS_LABEL[k]}</span> ${c[k]}</span>`).join('');
-    const rows = data.rows.filter(r => !data.hidden.has(r.status));
+      `<span class="chip ${data.sel.has(k) ? 'on' : ''}" data-st="${k}" title="${data.sel.has(k) ? 'Click to untick these files' : `Click to tick all ${c[k]} file(s): ${STATUS_LABEL[k].toLowerCase()}`}"><span class="st st-${k}">${STATUS_LABEL[k]}</span> ${c[k]}</span>`).join('');
+    const rows = data.sel.size ? data.rows.filter(r => data.sel.has(r.status)) : data.rows.filter(r => !data.hidden.has(r.status));
+    const ticked = data.rows.filter(r => r.action !== 'skip');
+    const canUp = ticked.filter(r => allowedActions(r.status).includes('upload')).length;
+    const canDown = ticked.filter(r => allowedActions(r.status).includes('download')).length;
     out.innerHTML = `
       <div class="cmp-controls">
         <label class="inline">Direction
@@ -2148,6 +2157,12 @@ function openCompare() {
         <div class="spacer"></div>
         <div class="chips">${chips || '<span class="muted">No files found</span>'}</div>
       </div>
+      ${ticked.length ? `<div class="cmp-quick">
+        <span class="muted">${ticked.length} file(s) ticked${data.sel.size ? ` · showing ${[...data.sel].map(k => STATUS_LABEL[k].toLowerCase()).join(', ')} (click the label again to untick)` : ''}</span>
+        <div class="spacer"></div>
+        <button type="button" id="cmpUp" ${canUp ? '' : 'disabled'}>Upload checked (${canUp}) →</button>
+        <button type="button" id="cmpDown" ${canDown ? '' : 'disabled'}>← Download checked (${canDown})</button>
+      </div>` : ''}
       ${rows.length ? `<div class="cmp-wrap"><table class="cmp-table">
         <thead><tr><th style="width:30px"></th><th>File</th><th style="width:110px">Status</th>
           <th style="width:150px">Local</th><th style="width:150px">Server</th><th style="width:140px">Action</th></tr></thead>
@@ -2164,24 +2179,41 @@ function openCompare() {
         }).join('')}</tbody></table></div>`
         : `<div class="info-box">${!data.rows.length ? 'No files found.'
             : data.rows.every(r => r.status === 'same') ? `All ${c.same} file(s) are identical – nothing to sync.`
-            : 'All differences are hidden – click the labels above to show them.'}</div>`}`;
+            : 'Nothing to show.'}</div>`}`;
     $('#cmpDir', out).value = data.dir;
     $('#cmpDir', out).onchange = e => {
       data.dir = e.target.value; store.set('syncDir', data.dir);
+      data.sel.clear();
       if (data.dir === 'both') data.mirror = false;
       data.rows.forEach(r => { r.action = defaultAction(r.status, data.dir, data.mirror); });
       renderCompare(el);
     };
     $('#cmpMirror', out).onchange = e => {
       data.mirror = e.target.checked;
+      data.sel.clear();
       data.rows.forEach(r => { r.action = defaultAction(r.status, data.dir, data.mirror); });
       renderCompare(el);
     };
+    // a label at the top ticks (and shows) all files of that kind; clicking it again unticks them
     $$('.chip', out).forEach(ch => ch.onclick = () => {
       const k = ch.dataset.st;
-      data.hidden.has(k) ? data.hidden.delete(k) : data.hidden.add(k);
+      const on = !data.sel.has(k);
+      if (on && !data.sel.size) data.rows.forEach(r => { r.action = 'skip'; });  // first label: only these files
+      on ? data.sel.add(k) : data.sel.delete(k);
+      data.rows.forEach(r => { if (r.status === k) r.action = on ? naturalAction(k, data.dir) : 'skip'; });
+      if (!data.sel.size) data.rows.forEach(r => { r.action = defaultAction(r.status, data.dir, data.mirror); });  // back to normal
       renderCompare(el);
     });
+    // upload / download everything that is ticked, right away
+    const quick = how => {
+      data.rows.forEach(r => {
+        if (r.action !== 'skip') r.action = allowedActions(r.status).includes(how) ? how : 'skip';
+      });
+      renderCompare(el);
+      runSync(el);
+    };
+    $('#cmpUp', out)?.addEventListener('click', () => quick('upload'));
+    $('#cmpDown', out)?.addEventListener('click', () => quick('download'));
     out.querySelector('tbody')?.addEventListener('change', e => {
       const tr = e.target.closest('tr');
       const r = data.rows[+tr.dataset.i];
