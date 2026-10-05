@@ -272,7 +272,10 @@ class Pane {
       if (tr.dataset.up) return;  // already handled by the single click
       const ent = this.byName(tr.dataset.name);
       if (ent?.dir) return;
-      else if (ent) { this.sel = new Set([ent.name]); this.render(); this.transfer(); }
+      else if (ent) {  // transfer just this file; what is ticked stays as it is
+        if (!S.status.connected) return toast('Connect to a server first', 'error');
+        startTransfer(this.remote ? 'download' : 'upload', [ent.path], this.other.path);
+      }
     });
     this.list.addEventListener('contextmenu', e => this.onContext(e));
     this.list.addEventListener('keydown', e => this.onKey(e));
@@ -568,20 +571,21 @@ class Pane {
     if (!tr) return;
     const name = tr.dataset.name;
     const names = this.visible().map(x => x.name);
-    const toggle = e.metaKey || e.ctrlKey || e.target.matches('input[type=checkbox]');
+    const box = !!e.target.closest('td.c-chk');  // the tick box, or the cell around it
     const ent = this.byName(name);
-    if (ent?.dir && !toggle && !e.shiftKey) return this.openDir(ent.path);  // one click opens a folder
-    if (e.shiftKey && this.anchor && names.includes(this.anchor)) {
-      const a = names.indexOf(this.anchor), b = names.indexOf(name);
-      if (!toggle) this.sel = new Set();
-      for (let i = Math.min(a, b); i <= Math.max(a, b); i++) this.sel.add(names[i]);
-    } else if (toggle) {
-      this.sel.has(name) ? this.sel.delete(name) : this.sel.add(name);
-      this.anchor = name;
-    } else {
-      this.sel = new Set([name]);
-      this.anchor = name;
+    // Only the tick box selects. A click on a folder opens it; a click on a file does nothing.
+    if (!box) {
+      if (ent?.dir) return this.openDir(ent.path);
+      this.list.focus({ preventScroll: true });
+      return;
     }
+    if (e.shiftKey && this.anchor && names.includes(this.anchor)) {  // shift + tick box: tick the whole range
+      const a = names.indexOf(this.anchor), b = names.indexOf(name);
+      for (let i = Math.min(a, b); i <= Math.max(a, b); i++) this.sel.add(names[i]);
+    } else {
+      this.sel.has(name) ? this.sel.delete(name) : this.sel.add(name);
+    }
+    this.anchor = name;
     this.render();
     this.list.focus({ preventScroll: true });
   }

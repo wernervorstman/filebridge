@@ -8,6 +8,8 @@ and of the update notice in the app, so keep it short and written for users.
 - Compare & sync: click a label such as "Only on server" to tick all those files, then **Upload checked** or
   **Download checked** transfers them right away.
 - Select type: shows only the files of the chosen types ("show all" at the bottom brings the rest back).
+- Only the checkbox selects a file; clicking a name no longer changes the selection.
+- Scrollbars are always visible when a list is longer than the window.
 
 ## 1.2.7
 - Footer shows "by DataLore".
