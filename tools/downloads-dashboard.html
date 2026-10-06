@@ -1,0 +1,153 @@
+<title>FileBridge Downloads</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;800&family=Inter:wght@400;500;600&display=swap">
+<style>
+/* Layout: one column, summary first (total + per system), then the trend over time, then per version. DataLore house style. */
+:root {
+  --bg: #EEF0E7; --panel: #FFFFFF; --ink: #131410; --muted: #5E6158; --line: #E2E1D6;
+  --green: #4A8A2E; --green-2: #7BC94C; --mac: #4A8A2E; --win: #2F6F9F; --linux: #B4782B;
+  --display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --body: "Inter", -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #131410; --panel: #1C1E18; --ink: #EEF0E7; --muted: #A3A69A; --line: #2E3128;
+  --green: #7BC94C; --green-2: #5FA83D; --mac: #7BC94C; --win: #6FB0E0; --linux: #E3A75A; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #131410; --panel: #1C1E18; --ink: #EEF0E7; --muted: #A3A69A; --line: #2E3128;
+  --green: #7BC94C; --green-2: #5FA83D; --mac: #7BC94C; --win: #6FB0E0; --linux: #E3A75A; color-scheme: dark; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--body); }
+.wrap { max-width: 980px; margin: 0 auto; padding-inline: 16px; padding-block: 28px 48px; display: grid; gap: 22px; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; }
+h1 { font: 800 26px/1.1 var(--display); text-transform: uppercase; letter-spacing: .01em; margin: 0; text-wrap: balance; }
+h1 .mark { color: var(--green); }
+h2 { font: 800 14px/1.2 var(--display); text-transform: uppercase; letter-spacing: .06em; margin: 0 0 12px; }
+.stamp { color: var(--muted); font-size: 13px; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 18px 20px; min-width: 0; }
+.tiles { display: grid; grid-template-columns: 1.4fr repeat(3, 1fr); gap: 12px; }
+@media (max-width: 640px) { .tiles { grid-template-columns: 1fr 1fr; } .tiles .total { grid-column: 1 / -1; } }
+.tile { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; display: grid; gap: 2px; }
+.tile .label { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); display: flex; align-items: center; gap: 7px; }
+.tile .num { font: 800 34px/1.1 var(--display); font-variant-numeric: tabular-nums; }
+.tile.total { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.tile.total .label { color: color-mix(in srgb, var(--bg) 70%, transparent); }
+.tile.total .num { font-size: 44px; }
+.tile .delta { font-size: 12px; color: var(--muted); }
+.tile.total .delta { color: color-mix(in srgb, var(--bg) 75%, transparent); }
+.dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.mac { background: var(--mac); } .win { background: var(--win); } .linux { background: var(--linux); }
+.chart { width: 100%; height: auto; display: block; }
+.chart text { fill: var(--muted); font: 11px var(--body); font-variant-numeric: tabular-nums; }
+.chart .grid { stroke: var(--line); stroke-width: 1; }
+.chart .line { fill: none; stroke: var(--green); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
+.chart .area { fill: var(--green); opacity: .12; }
+.chart .pt { fill: var(--green); }
+.chart .pt.last { fill: var(--panel); stroke: var(--green); stroke-width: 2.5; }
+.empty { color: var(--muted); font-size: 14px; padding: 8px 0; }
+.rel { display: grid; grid-template-columns: 64px 1fr 44px; align-items: center; gap: 10px; padding: 5px 0; font-variant-numeric: tabular-nums; }
+.rel .tag { font-weight: 600; font-size: 13px; }
+.rel .date { display: block; font-size: 11px; color: var(--muted); font-weight: 400; }
+.bar { display: flex; height: 14px; border-radius: 7px; overflow: hidden; background: color-mix(in srgb, var(--line) 60%, transparent); }
+.bar span { display: block; height: 100%; }
+.rel .n { text-align: right; font-weight: 600; }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; color: var(--muted); margin-top: 10px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.note { font-size: 13px; color: var(--muted); max-width: 70ch; }
+.note b { color: var(--ink); font-weight: 600; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>FileBridge <span class="mark">downloads</span></h1>
+    <div class="stamp" id="stamp">Gegevens laden…</div>
+  </header>
+
+  <section class="tiles" aria-label="Totalen">
+    <div class="tile total"><div class="label">Totaal gedownload</div><div class="num" id="tTotal">–</div><div class="delta" id="dTotal"></div></div>
+    <div class="tile"><div class="label"><i class="dot mac"></i>macOS</div><div class="num" id="tMac">–</div><div class="delta" id="dMac"></div></div>
+    <div class="tile"><div class="label"><i class="dot win"></i>Windows</div><div class="num" id="tWin">–</div><div class="delta" id="dWin"></div></div>
+    <div class="tile"><div class="label"><i class="dot linux"></i>Linux</div><div class="num" id="tLinux">–</div><div class="delta" id="dLinux"></div></div>
+  </section>
+
+  <section class="panel">
+    <h2>Totaal door de tijd</h2>
+    <div id="trend"><div class="empty">Elke dag komt er een meetpunt bij.</div></div>
+  </section>
+
+  <section class="panel">
+    <h2>Per versie</h2>
+    <div id="releases"><div class="empty">Nog geen gegevens. De eerste meting verschijnt zodra die is opgeslagen.</div></div>
+    <div class="legend"><span><i class="dot mac"></i>macOS (.dmg)</span><span><i class="dot win"></i>Windows (.exe)</span><span><i class="dot linux"></i>Linux (.tar.gz)</span></div>
+  </section>
+
+  <p class="note">Telt elke download van de installatiebestanden op GitHub, ook via de knoppen op datalore.eu. Checksums en
+    handtekeningen tellen niet mee. <b>Let op:</b> tot en met v1.3.0 zitten hier ook controle-downloads van DataLore zelf
+    tussen (ongeveer 2 per versie). De cijfers worden één keer per dag bijgewerkt.</p>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const nf = new Intl.NumberFormat('nl-NL');
+const fmtDate = d => new Date(d + 'T12:00:00').toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' });
+
+function render(snaps) {
+  if (!snaps.length) return;
+  snaps.sort((a, b) => a.date.localeCompare(b.date));
+  const last = snaps[snaps.length - 1];
+  const prev = snaps.length > 1 ? snaps[snaps.length - 2] : null;
+  const when = new Date(last.taken_at || (last.date + 'T12:00:00'));
+  $('stamp').textContent = 'Bijgewerkt ' + when.toLocaleString('nl-NL', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
+  const tiles = [['tTotal', 'dTotal', 'total'], ['tMac', 'dMac', 'mac'], ['tWin', 'dWin', 'win'], ['tLinux', 'dLinux', 'linux']];
+  for (const [t, d, k] of tiles) {
+    $(t).textContent = nf.format(last[k] || 0);
+    const diff = prev ? (last[k] || 0) - (prev[k] || 0) : null;
+    $(d).textContent = diff == null ? '' : (diff > 0 ? `+${nf.format(diff)} sinds ${fmtDate(prev.date)}` : `geen nieuwe sinds ${fmtDate(prev.date)}`);
+  }
+  renderTrend(snaps);
+  renderReleases(last.releases || []);
+}
+
+function renderTrend(snaps) {
+  const box = $('trend');
+  if (snaps.length < 2) {
+    box.innerHTML = `<div class="empty">Eerste meting: ${nf.format(snaps[0].total)} downloads op ${fmtDate(snaps[0].date)}. Vanaf de volgende meting zie je hier de lijn.</div>`;
+    return;
+  }
+  const W = 900, H = 240, L = 44, R = 18, T = 14, B = 30;
+  const max = Math.max(...snaps.map(s => s.total));
+  const top = Math.max(10, Math.ceil(max * 1.15 / 10) * 10);
+  const x = i => L + (W - L - R) * (snaps.length === 1 ? 0.5 : i / (snaps.length - 1));
+  const y = v => T + (H - T - B) * (1 - v / top);
+  const ticks = [0, .25, .5, .75, 1].map(f => Math.round(top * f));
+  const pts = snaps.map((s, i) => [x(i), y(s.total)]);
+  const line = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+  const area = line + ` L ${pts[pts.length - 1][0].toFixed(1)} ${y(0)} L ${pts[0][0].toFixed(1)} ${y(0)} Z`;
+  const every = Math.max(1, Math.ceil(snaps.length / 8));
+  box.innerHTML = `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Totaal aantal downloads per dag">
+    ${ticks.map(v => `<line class="grid" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/><text x="${L - 8}" y="${y(v) + 4}" text-anchor="end">${nf.format(v)}</text>`).join('')}
+    <path class="area" d="${area}"/><path class="line" d="${line}"/>
+    ${pts.map((p, i) => `<circle class="pt${i === pts.length - 1 ? ' last' : ''}" cx="${p[0]}" cy="${p[1]}" r="${i === pts.length - 1 ? 5 : 3}"><title>${fmtDate(snaps[i].date)}: ${nf.format(snaps[i].total)}</title></circle>`).join('')}
+    ${snaps.map((s, i) => (i % every === 0 || i === snaps.length - 1) ? `<text x="${x(i)}" y="${H - 8}" text-anchor="middle">${fmtDate(s.date)}</text>` : '').join('')}
+  </svg>`;
+}
+
+function renderReleases(rels) {
+  const box = $('releases');
+  if (!rels.length) return;
+  const max = Math.max(1, ...rels.map(r => r.mac + r.win + r.linux));
+  box.innerHTML = rels.map(r => {
+    const n = r.mac + r.win + r.linux;
+    const seg = (v, c) => v ? `<span class="${c}" style="width:${(v / max * 100).toFixed(2)}%" title="${c === 'mac' ? 'macOS' : c === 'win' ? 'Windows' : 'Linux'}: ${v}"></span>` : '';
+    const d = r.published ? new Date(r.published).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' }) : '';
+    return `<div class="rel"><div class="tag">${r.tag}<span class="date">${d}</span></div>
+      <div class="bar">${seg(r.mac, 'mac')}${seg(r.win, 'win')}${seg(r.linux, 'linux')}</div><div class="n">${nf.format(n)}</div></div>`;
+  }).join('');
+}
+
+(async () => {
+  const db = await window.claude?.use?.('db');
+  if (!db) { $('stamp').textContent = 'De gegevens zijn hier niet beschikbaar.'; return; }
+  db.collection('snapshots').onSnapshot(
+    snap => render(snap.docs.map(d => d.data()).filter(Boolean).map(x => ({ ...x }))),
+    () => { $('stamp').textContent = 'De gegevens konden niet worden geladen.'; });
+})();
+</script>
