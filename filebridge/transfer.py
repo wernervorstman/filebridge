@@ -243,6 +243,23 @@ def _local_total(paths):
     return total
 
 
+TRIES = 3  # a file that hits a time-out or a dropped connection is tried this often, each time on a fresh connection
+
+
+class Transient(Exception):
+    """A file failed in a way that usually works the next time (time-out, dropped connection)."""
+    def __init__(self, error, fail, name=''):
+        super().__init__(str(error))
+        self.error, self.fail, self.name = error, fail, name  # fail(): record it as failed when the tries are used up
+
+
+def is_transient(error):
+    e = str(error or '').lower()
+    return isinstance(error, (TimeoutError, ConnectionError, EOFError)) or any(w in e for w in (
+        'timed out', 'timeout', 'connection reset', 'broken pipe', 'connection aborted', 'eof', 'socket is closed',
+        '421', '425', '426', '451'))
+
+
 def run_parallel(job, sftp, tasks, work):
     """Run work(client, task) for every task, spread over up to job.parallel connections.
 
@@ -250,13 +267,32 @@ def run_parallel(job, sftp, tasks, work):
     by job.new_client() at the same time (logging in costs several round trips), and
     simply join in when ready. Returns the results. The first error stops the others."""
     tasks = list(tasks)
+    can_reconnect = bool(getattr(job, 'new_client', None))
     n = max(1, min(getattr(job, 'parallel', 1) or 1, len(tasks)))
-    if n == 1 or not getattr(job, 'new_client', None):
-        return [work(sftp, t) for t in tasks if not job.check()]
+    if not can_reconnect:
+        n = 1
     q = queue.Queue()
-    for t in tasks:
-        q.put(t)
+    for i, t in enumerate(tasks):
+        q.put((i, t))
     results, errors, lock = [], [], threading.Lock()
+    tries = {}
+
+    def attempt(client, i, t):
+        """Run one task. A time-out puts it back in the queue (up to TRIES) and asks for a fresh connection."""
+        job.check()
+        try:
+            return work(client, t), False
+        except Transient as tr_err:
+            with lock:
+                tries[i] = tries.get(i, 0) + 1
+                again = tries[i] < TRIES
+            if not again:
+                return tr_err.fail(), False
+            job.log(tr('{name}: {error} – trying again on a new connection ({n} of {max})',
+                       name=tr_err.name, error=tr_err.error, n=tries[i] + 1, max=TRIES), 'warn')
+            time.sleep(1.5 * tries[i])
+            q.put((i, t))
+            return None, True
 
     def worker(client):
         own = client is not None
@@ -272,10 +308,23 @@ def run_parallel(job, sftp, tasks, work):
                     return
             while not errors:
                 try:
-                    t = q.get_nowait()
+                    i, t = q.get_nowait()
                 except queue.Empty:
                     return
-                r = work(client, t)
+                r, retry = attempt(client, i, t)
+                if retry:  # this connection may be stuck: carry on with a fresh one
+                    if can_reconnect:
+                        if not own:
+                            try:
+                                client.close()
+                            except Exception:
+                                pass
+                        try:
+                            client = job.new_client()
+                            own = False  # ours to close now
+                        except Exception:
+                            return  # no new connection: the other workers take over the queue
+                    continue
                 with lock:
                     results.append(r)
         except BaseException as e:  # noqa: BLE001 – includes Cancelled
@@ -288,6 +337,11 @@ def run_parallel(job, sftp, tasks, work):
                 except Exception:
                     pass
 
+    if n == 1:  # one connection: no threads needed
+        worker(sftp)
+        if errors:
+            raise errors[0]
+        return results
     threads = [threading.Thread(target=worker, args=(sftp,), daemon=True)]
     threads += [threading.Thread(target=worker, args=(None,), daemon=True) for _ in range(n - 1)]
     for t in threads:
@@ -394,8 +448,13 @@ def upload_paths(job, sftp, local_paths, remote_dir, policy='overwrite'):
         except (OSError, EOFError) as e:  # this file failed – continue with the others
             if not os.path.exists(local):
                 raise
-            _record_failure(job, 'upload', local, remote_path, e)
-            return 'failed'
+
+            def fail():
+                _record_failure(job, 'upload', local, remote_path, e)
+                return 'failed'
+            if is_transient(e):
+                raise Transient(e, fail, name)
+            return fail()
 
     return _count(run_parallel(job, sftp, tasks, work))
 
@@ -439,8 +498,12 @@ def download_paths(job, sftp, remote_paths, local_dir, policy='overwrite'):
         except PermissionError:
             raise  # e.g. macOS blocks the folder: the whole job should explain that
         except (OSError, EOFError) as e:
-            _record_failure(job, 'download', t[0], t[1], e)
-            return 'failed'
+            def fail():
+                _record_failure(job, 'download', t[0], t[1], e)
+                return 'failed'
+            if is_transient(e):
+                raise Transient(e, fail, os.path.basename(t[1]))
+            return fail()
 
     return _count(run_parallel(job, sftp, tasks, work))
 

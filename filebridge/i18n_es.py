@@ -247,4 +247,6 @@ ES = {
         'El servidor cerró tu sesión durante la transferencia (530). Vuelve a conectar y reintenta.',
     'No permission to write this file: the folder (or the file that is already there) does not allow it. Check the permissions of the folder, for example with Permissions on the server side.':
         'No hay permiso para escribir este archivo: la carpeta (o el archivo que ya está ahí) no lo permite. Comprueba los permisos de la carpeta, por ejemplo con Permisos en el lado del servidor.',
+    '{name}: {error} – trying again on a new connection ({n} of {max})':
+        '{name}: {error} – se reintenta con una conexión nueva ({n} de {max})',
 }

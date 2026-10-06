@@ -247,4 +247,6 @@ NL = {
         'De server heeft je tijdens het overzetten uitgelogd (530). Maak opnieuw verbinding en probeer het nog eens.',
     'No permission to write this file: the folder (or the file that is already there) does not allow it. Check the permissions of the folder, for example with Permissions on the server side.':
         'Geen toestemming om dit bestand te schrijven: de map (of het bestand dat er al staat) staat het niet toe. Controleer de rechten van de map, bijvoorbeeld met Rechten aan de serverkant.',
+    '{name}: {error} – trying again on a new connection ({n} of {max})':
+        '{name}: {error} – opnieuw proberen via een nieuwe verbinding ({n} van {max})',
 }

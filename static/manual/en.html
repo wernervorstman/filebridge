@@ -87,7 +87,8 @@
       size</i> or <i>Resume</i>.</li>
   </ul>
   <figure><img data-shot="queue" alt=""><figcaption>The queue shows the progress and a summary when it's done.</figcaption></figure>
-  <p>When some files fail, the others are still transferred and the queue shows <b>Retry</b> for just the failed ones.
+  <p>When a file hits a time-out or the connection drops, FileBridge tries it again by itself on a fresh connection (up to three
+    times). When files still fail, the others are transferred anyway and the queue shows <b>Retry</b> for just the failed ones.
     Click <b>What went wrong?</b> to see each failed file with the server's reply and a plain explanation, such as no
     permission in the folder, a file name the server doesn't accept, a full disk or a dropped connection. Several files
     go at the same time (3 by default; per site under <b>Transfer Settings</b>).</p>

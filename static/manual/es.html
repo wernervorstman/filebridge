@@ -88,8 +88,9 @@
       <i>Sobrescribir</i>, <i>Omitir si tiene el mismo tamaño</i> o <i>Reanudar</i>.</li>
   </ul>
   <figure><img data-shot="queue" alt=""><figcaption>La cola muestra el progreso y un resumen al terminar.</figcaption></figure>
-  <p>Si fallan algunos archivos, los demás se transfieren igualmente y la cola muestra <b>Reintentar</b> solo para los
-    que fallaron. Haz clic en <b>¿Qué ha fallado?</b> para ver cada archivo fallido con la respuesta del servidor y una
+  <p>Si un archivo se queda sin respuesta o se corta la conexión, FileBridge lo vuelve a intentar solo con una conexión
+    nueva (hasta tres veces). Si aun así fallan archivos, los demás se transfieren igualmente y la cola muestra
+    <b>Reintentar</b> solo para los que fallaron. Haz clic en <b>¿Qué ha fallado?</b> para ver cada archivo fallido con la respuesta del servidor y una
     explicación sencilla, como falta de permiso en la carpeta, un nombre de archivo que el servidor no acepta, un disco
     lleno o una conexión cortada. Se transfieren varios archivos a la vez (3 por defecto; por sitio en
     <b>Transferencia</b>).</p>
