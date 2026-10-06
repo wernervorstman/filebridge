@@ -584,3 +584,9 @@ th.c-type { width: 104px; }  /* room for "TXT-bestand" / "Archivo TXT" */
 .fail-name { font-weight: 600; word-break: break-all; }
 .fail-err { font-family: var(--mono, monospace); font-size: 12px; color: #C0392B; margin-top: 2px; word-break: break-word; }
 .fail-hint { font-size: 13px; color: var(--muted); margin-top: 4px; }
+/* dialogs never get taller than the window: the inside scrolls, the buttons stay in view */
+.modal { max-height: calc(100vh - 40px); }
+.overlay { overflow: auto; }
+/* Extract zip: the whole contents of the zip, scrollable */
+.zip-list { max-height: 240px; overflow: auto; margin-top: 6px; padding-right: 6px; font-size: 12px; line-height: 1.7; }
+.zip-list .mono { white-space: nowrap; }

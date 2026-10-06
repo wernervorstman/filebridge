@@ -67,7 +67,7 @@ def inspect(zp):
             top = t
     st = os.stat(zp)
     return {'zip': zp, 'name': os.path.basename(zp), 'size': st.st_size, 'mtime': st.st_mtime,
-            'files': len(files), 'top_folder': top, 'sample': files[:12]}
+            'files': len(files), 'top_folder': top, 'sample': files[:12], 'names': files[:5000]}
 
 
 def _backup(job, remote, sftp, remote_dir, ts, site_name):

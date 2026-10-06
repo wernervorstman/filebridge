@@ -543,4 +543,5 @@ Object.assign(NL, {
   "{n} file(s) could not be transferred. The other files were transferred normally.": "{n} bestand(en) konden niet worden overgezet. De andere bestanden zijn gewoon overgezet.",
   "Click Retry in the queue to try only these files again. Everything is also written to the log file: {path}": "Klik in de wachtrij op opnieuw proberen om alleen deze bestanden nog eens te proberen. Alles staat ook in het logbestand: {path}",
   "Show log file": "Logbestand tonen",
+  "\u2026 and {n} more": "… en nog {n}",
 });

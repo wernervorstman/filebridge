@@ -1014,7 +1014,10 @@ async function openExtract(pane) {
         const target = into ? `${destVal === '/' ? '' : destVal}/${base}` : destVal;
         const top = info.top_folder;
         const map = p => (strip && top && p.startsWith(top + '/') ? p.slice(top.length + 1) : p);
-        const rows = info.sample.slice(0, 3).map(p => `<div class="mono">${esc(p)} <span class="muted">→</span> ${esc((target === '/' ? '' : target) + '/' + map(p))}</div>`).join('');
+        // every file in the zip and where it ends up, in a box of its own that scrolls
+        const all = [...(info.names || info.sample)].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+        const rows = `<div class="zip-list">${all.map(p => `<div class="mono"><span>${esc(p)}</span> <span class="muted">→</span> ${esc((target === '/' ? '' : target) + '/' + map(p))}</div>`).join('')}</div>`
+          + (info.files > all.length ? `<div class="muted">${esc(t('… and {n} more', { n: info.files - all.length }))}</div>` : '');
         let warn = '';
         if (destFor !== destVal) {
           destFor = destVal; destNames = null;
@@ -1023,7 +1026,7 @@ async function openExtract(pane) {
         if (strip && top && !into && destNames?.has(top)) {
           warn = `<div class="err" style="margin-top:8px">⚠ ${t("This folder already contains “{top}/”. With “Leave out the zip's top folder” on, the files do <b>not</b> go into “{top}/” and the existing files there are <b>not</b> replaced. Untick it to update “{top}/”.", { top: esc(top) })}</div>`;
         }
-        box.innerHTML = `<b>${esc(t('Result'))}</b> (${esc(top ? t('{n} files, top folder “{top}/”', { n: info.files, top }) : nFiles(info.files))}):${rows}${info.files > 3 ? '<div class="muted">…</div>' : ''}${warn}`;
+        box.innerHTML = `<b>${esc(t('Result'))}</b> (${esc(top ? t('{n} files, top folder “{top}/”', { n: info.files, top }) : nFiles(info.files))}):${rows}${warn}`;
       };
       api('zip_info', { side: pane.side, zip: z.path }).then(r => {
         info = r.info;

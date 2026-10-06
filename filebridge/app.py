@@ -594,7 +594,8 @@ class App:
         if r.has_command('unzip'):
             names = extract._remote_names(r, zp)
             files = [n for n in names if not n.endswith('/') and not n.startswith('__MACOSX/')]
-            return {'info': {'top_folder': deploy.top_folder(names), 'files': len(files), 'sample': files[:12]}}
+            return {'info': {'top_folder': deploy.top_folder(names), 'files': len(files), 'sample': files[:12],
+                             'names': files[:5000]}}
         with r.lock:
             size = r.sftp.stat(zp).st_size or 0
         if size > 300 * 1024 * 1024:

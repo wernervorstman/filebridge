@@ -9,6 +9,7 @@ and of the update notice in the app, so keep it short and written for users.
 - **Settings** has a new look with tabs (General, Filters, Transfers, View/Edit, User manual), behind the gear at the top right.
 - The synchronized browsing button is now the **⇄** icon, so the top bar fits on one line.
 - A file that times out or loses its connection is tried again automatically on a fresh connection (up to 3 times).
+- Extract zip shows the whole contents of the zip (scroll through it), and dialogs never get taller than the window.
 - **What went wrong?** in the queue shows every file that failed, with the server's reply and a plain explanation.
 - FileBridge keeps a log file (`~/.filebridge/filebridge.log`), so a problem can be looked up after closing.
 

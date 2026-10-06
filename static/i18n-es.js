@@ -543,4 +543,5 @@ Object.assign(ES, {
   "{n} file(s) could not be transferred. The other files were transferred normally.": "No se pudieron transferir {n} archivo(s). Los demás archivos se transfirieron con normalidad.",
   "Click Retry in the queue to try only these files again. Everything is also written to the log file: {path}": "Haz clic en Reintentar en la cola para volver a probar solo estos archivos. Todo se guarda también en el archivo de registro: {path}",
   "Show log file": "Mostrar el archivo de registro",
+  "\u2026 and {n} more": "… y {n} más",
 });
