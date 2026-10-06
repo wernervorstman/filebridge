@@ -89,7 +89,13 @@
   </ul>
   <figure><img data-shot="queue" alt=""><figcaption>La cola muestra el progreso y un resumen al terminar.</figcaption></figure>
   <p>Si fallan algunos archivos, los demás se transfieren igualmente y la cola muestra <b>Reintentar</b> solo para los
-    que fallaron. Se transfieren varios archivos a la vez (3 por defecto; por sitio en <b>Transferencia</b>).</p>
+    que fallaron. Haz clic en <b>¿Qué ha fallado?</b> para ver cada archivo fallido con la respuesta del servidor y una
+    explicación sencilla, como falta de permiso en la carpeta, un nombre de archivo que el servidor no acepta, un disco
+    lleno o una conexión cortada. Se transfieren varios archivos a la vez (3 por defecto; por sitio en
+    <b>Transferencia</b>).</p>
+  <p class="tip">Todo lo que hace FileBridge se guarda también en un archivo de registro: <code>filebridge.log</code> en la
+    carpeta <code>.filebridge</code> de tu carpeta personal. Así puedes consultar un problema incluso después de cerrar
+    FileBridge. <b>Mostrar el archivo de registro</b> en la ventana <b>¿Qué ha fallado?</b> lo abre.</p>
   <p class="tip">¿Subes a una carpeta web pública como <code>public_html</code>? FileBridge te avisa de archivos que
     cualquiera podría descargar después, como zips, copias de bases de datos (<code>.sql</code>), copias de seguridad y
     archivos <code>.env</code>. Elige <b>Omitir estos archivos</b> o <b>Subir de todos modos</b>.</p>

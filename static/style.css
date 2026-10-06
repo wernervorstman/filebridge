@@ -577,3 +577,10 @@ th.c-type { width: 104px; }  /* room for "TXT-bestand" / "Archivo TXT" */
 .topbar #connStatus { max-width: 140px; }
 .topbar .langs button { padding: 2px 3px; font-size: 14px; }
 .topbar #connStatus { max-width: 120px; }
+.job .err a { color: inherit; font-weight: 600; margin-left: 6px; }
+.fails { max-height: 50vh; overflow: auto; border: 1px solid var(--border); border-radius: 10px; }
+.fail { padding: 9px 12px; border-bottom: 1px solid var(--border); }
+.fail:last-child { border-bottom: none; }
+.fail-name { font-weight: 600; word-break: break-all; }
+.fail-err { font-family: var(--mono, monospace); font-size: 12px; color: #C0392B; margin-top: 2px; word-break: break-word; }
+.fail-hint { font-size: 13px; color: var(--muted); margin-top: 4px; }

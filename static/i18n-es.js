@@ -538,4 +538,9 @@ Object.assign(ES, {
   "Plugin errors: {errors}": "Errores de plugins: {errors}",
   "{n} plugin action(s) loaded": "{n} acción(es) de plugins cargada(s)",
   "Open plugins folder": "Abrir la carpeta de plugins",
+  "What went wrong?": "¿Qué ha fallado?",
+  "Reply: {error}": "Respuesta: {error}",
+  "{n} file(s) could not be transferred. The other files were transferred normally.": "No se pudieron transferir {n} archivo(s). Los demás archivos se transfirieron con normalidad.",
+  "Click Retry in the queue to try only these files again. Everything is also written to the log file: {path}": "Haz clic en Reintentar en la cola para volver a probar solo estos archivos. Todo se guarda también en el archivo de registro: {path}",
+  "Show log file": "Mostrar el archivo de registro",
 });

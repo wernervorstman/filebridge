@@ -42,6 +42,13 @@ class Job:
     def log(self, msg, level='info'):
         self._log(msg, level)
 
+    @staticmethod
+    def _failure(f):
+        from .transfer import explain_failure
+        name = f['dst'].replace('\\', '/').rstrip('/').rsplit('/', 1)[-1]
+        return {'name': name, 'path': f['dst'], 'direction': f['direction'], 'error': f['error'],
+                'hint': explain_failure(f['error'])}
+
     def add(self, n):
         with self._lock:
             self.done += n
@@ -58,6 +65,7 @@ class Job:
             'total': self.total, 'done': self.done, 'current': self.current,
             'error': self.error, 'result': self.result, 'refresh': self.refresh, 'unit': self.unit,
             'failed': len(self.failed),
+            'failures': [self._failure(f) for f in self.failed[:100]],
             'speed': (self.done / elapsed) if elapsed > 0.5 else 0,
         }
 

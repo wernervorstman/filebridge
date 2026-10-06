@@ -69,6 +69,38 @@ def _excluded(job, name):
     return bool(ex and ex(name))
 
 
+def explain_failure(error):
+    """A plain explanation of why a single file failed, from the error text (server reply or system error)."""
+    e = str(error or '').lower()
+    def has(*words):
+        return any(w in e for w in words)
+    if has('553'):
+        return tr('The server does not accept this file name (553). Rename it without special characters, spaces or '
+                  'accents, and try again.')
+    if has('552', 'quota', 'no space', 'disk full', 'errno 28'):
+        return tr('The server is full, or the storage quota of your hosting account is used up (552). Make room or '
+                  'ask your hosting provider.')
+    if has('permission denied', 'errno 13', 'access denied', 'not permitted') and '550' not in e:
+        return tr('No permission to write this file: the folder (or the file that is already there) does not allow it. '
+                  'Check the permissions of the folder, for example with Permissions on the server side.')
+    if has('550'):
+        return tr('The server refused to write this file (550): usually no permission in this folder, a file that is '
+                  'locked or in use, or a file name the server does not accept (special characters, accents, very long '
+                  'names). Check the permissions of the folder and the file name.')
+    if has('451', '450'):
+        return tr('The server had a temporary problem with this file. Retry usually helps.')
+    if has('421', 'timed out', 'timeout', 'connection reset', 'broken pipe', 'eof', 'connection aborted',
+           'socket is closed', 'not connected', 'connection lost'):
+        return tr('The connection dropped during the transfer: the server or the network closed it. Retry usually '
+                  'helps. If it keeps happening, lower the number of simultaneous transfers in Site Manager → '
+                  'Transfer Settings.')
+    if has('no such file', 'errno 2', 'not found', '2 no such'):
+        return tr('The file or its folder no longer exists, or the folder could not be created on the server.')
+    if has('530'):
+        return tr('The server logged you out during the transfer (530). Reconnect and retry.')
+    return ''
+
+
 def _record_failure(job, direction, src, dst, err):
     """Remember a failed file so it can be retried; the rest of the job carries on."""
     with job._lock:

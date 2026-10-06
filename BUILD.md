@@ -87,6 +87,7 @@ Official releases (1.2.4 and later) are signed: macOS with a Developer ID and no
 |---|---|
 | Sites (no passwords) | `~/.filebridge/sites.json`, `folders.json` |
 | Trusted server keys | `~/.filebridge/known_hosts` |
+| Log | `~/.filebridge/filebridge.log` (and `.1`, about 2 MB in total) |
 | Passwords | macOS Keychain / Windows Credential Manager / Linux Secret Service, under the service **FileBridge** |
 | Plugins (packaged app) | macOS `~/Library/Application Support/FileBridge/plugins`, Windows `%APPDATA%\FileBridge\plugins`, Linux `~/.local/share/FileBridge/plugins` |
 | Window settings | the same FileBridge folder, `webview/` |

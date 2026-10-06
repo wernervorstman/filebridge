@@ -88,7 +88,12 @@
   </ul>
   <figure><img data-shot="queue" alt=""><figcaption>The queue shows the progress and a summary when it's done.</figcaption></figure>
   <p>When some files fail, the others are still transferred and the queue shows <b>Retry</b> for just the failed ones.
-    Several files go at the same time (3 by default; per site under <b>Transfer Settings</b>).</p>
+    Click <b>What went wrong?</b> to see each failed file with the server's reply and a plain explanation, such as no
+    permission in the folder, a file name the server doesn't accept, a full disk or a dropped connection. Several files
+    go at the same time (3 by default; per site under <b>Transfer Settings</b>).</p>
+  <p class="tip">Everything FileBridge does is also written to a log file, <code>filebridge.log</code> in the folder
+    <code>.filebridge</code> in your home folder, so you can still look up a problem after closing FileBridge.
+    <b>Show log file</b> in the <b>What went wrong?</b> window opens it.</p>
   <p class="tip">Uploading to a public web folder such as <code>public_html</code>? FileBridge warns you about files
     that anyone could then download, such as zips, database dumps (<code>.sql</code>), backups and <code>.env</code>
     files. Choose <b>Skip these files</b> or <b>Upload anyway</b>.</p>

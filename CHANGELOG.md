@@ -8,6 +8,8 @@ and of the update notice in the app, so keep it short and written for users.
 - A **user manual** with pictures in all three languages: **Manual** at the bottom of the window, or Settings → User manual.
 - **Settings** has a new look with tabs (General, Filters, Transfers, View/Edit, User manual), behind the gear at the top right.
 - The synchronized browsing button is now the **⇄** icon, so the top bar fits on one line.
+- **What went wrong?** in the queue shows every file that failed, with the server's reply and a plain explanation.
+- FileBridge keeps a log file (`~/.filebridge/filebridge.log`), so a problem can be looked up after closing.
 
 ## 1.2.8
 - The update notice now also checks while FileBridge stays open, and tells you once what is new in a version.

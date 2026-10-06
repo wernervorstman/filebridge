@@ -231,4 +231,20 @@ ES = {
     '{n} skipped by your filter': '{n} omitidos por tu filtro',
     '{n} uploaded': '{n} subidos',
     '{panel} detected.': '{panel} detectado.',
+    'The server does not accept this file name (553). Rename it without special characters, spaces or accents, and try again.':
+        'El servidor no acepta este nombre de archivo (553). Cámbiale el nombre sin caracteres especiales, espacios ni acentos y vuelve a intentarlo.',
+    'The server is full, or the storage quota of your hosting account is used up (552). Make room or ask your hosting provider.':
+        'El servidor está lleno, o se ha agotado el espacio de tu cuenta de hosting (552). Libera espacio o consulta a tu proveedor de hosting.',
+    'The server refused to write this file (550): usually no permission in this folder, a file that is locked or in use, or a file name the server does not accept (special characters, accents, very long names). Check the permissions of the folder and the file name.':
+        'El servidor se negó a escribir este archivo (550): normalmente no hay permiso de escritura en esta carpeta, el archivo está bloqueado o en uso, o el servidor no acepta el nombre (caracteres especiales, acentos, nombres muy largos). Comprueba los permisos de la carpeta y el nombre del archivo.',
+    'The server had a temporary problem with this file. Retry usually helps.':
+        'El servidor tuvo un problema temporal con este archivo. Reintentar suele funcionar.',
+    'The connection dropped during the transfer: the server or the network closed it. Retry usually helps. If it keeps happening, lower the number of simultaneous transfers in Site Manager → Transfer Settings.':
+        'La conexión se cortó durante la transferencia: la cerró el servidor o la red. Reintentar suele funcionar. Si pasa a menudo, reduce el número de transferencias simultáneas en Gestor de sitios → Transferencia.',
+    'The file or its folder no longer exists, or the folder could not be created on the server.':
+        'El archivo o su carpeta ya no existen, o no se pudo crear la carpeta en el servidor.',
+    'The server logged you out during the transfer (530). Reconnect and retry.':
+        'El servidor cerró tu sesión durante la transferencia (530). Vuelve a conectar y reintenta.',
+    'No permission to write this file: the folder (or the file that is already there) does not allow it. Check the permissions of the folder, for example with Permissions on the server side.':
+        'No hay permiso para escribir este archivo: la carpeta (o el archivo que ya está ahí) no lo permite. Comprueba los permisos de la carpeta, por ejemplo con Permisos en el lado del servidor.',
 }

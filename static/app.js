@@ -1147,6 +1147,7 @@ function renderJobs(jobs) {
   badge.textContent = active;
   const q = $('#queue');
   if (!jobs.length) { q.innerHTML = `<div class="empty">${esc(t('No transfers yet. Select files and click Upload/Download, or drag them to the other side.'))}</div>`; return; }
+  S.jobsById = Object.fromEntries(jobs.map(j => [j.id, j]));
   q.innerHTML = jobs.map(j => {
     const pct = j.total ? Math.min(100, Math.round(j.done / j.total * 100)) : (j.status === 'done' ? 100 : 0);
     const items = j.unit === 'items';
@@ -1157,7 +1158,7 @@ function renderJobs(jobs) {
     return `<div class="job ${j.status}">
       <span class="dot"></span>
       <div style="min-width:0"><div class="title" title="${esc(j.title)}">${esc(j.title)}</div>
-        ${j.error ? `<div class="err">${esc(j.error)}</div>` : `<div class="sub">${esc(label)}</div>`}</div>
+        ${j.error ? `<div class="err">${esc(j.error)}${j.failures?.length ? ` <a href="#" data-why="${j.id}">${esc(t('What went wrong?'))}</a>` : ''}</div>` : `<div class="sub">${esc(label)}</div>`}</div>
       <div class="bar"><i style="width:${pct}%"></i></div>
       <div class="sub">${sizeTxt}${speed}</div>
       <div>${['queued', 'running'].includes(j.status) ? `<button class="small" data-cancel="${j.id}">${esc(t('Cancel'))}</button>`
@@ -1165,7 +1166,26 @@ function renderJobs(jobs) {
     </div>`;
   }).join('');
 }
+// Which files failed and why: the server's reply plus a plain explanation
+function showFailures(job) {
+  const rows = (job.failures || []).map(f => `<div class="fail">
+      <div class="fail-name" title="${esc(f.path)}">${esc(f.name)}</div>
+      <div class="fail-err">${esc(t('Reply: {error}', { error: f.error }))}</div>
+      ${f.hint ? `<div class="fail-hint">${esc(f.hint)}</div>` : ''}</div>`).join('');
+  modal({
+    title: t('What went wrong?'), size: 'mid',
+    body: `<p>${esc(t('{n} file(s) could not be transferred. The other files were transferred normally.', { n: job.failed }))}</p>
+      <div class="fails">${rows}</div>
+      <p class="muted sm-note">${esc(t('Click Retry in the queue to try only these files again. Everything is also written to the log file: {path}', { path: S.logFile || '' }))}</p>`,
+    buttons: [
+      ...(S.logFile ? [{ label: t('Show log file'), left: true, onClick: () => api('reveal', { path: S.logFile }).catch(err => toast(err.message, 'error')) }] : []),
+      { label: t('Close'), value: null, primary: true },
+    ],
+  });
+}
 $('#queue').addEventListener('click', e => {
+  const why = e.target.dataset.why;
+  if (why) { e.preventDefault(); const job = S.jobsById?.[why]; if (job) showFailures(job); return; }
   const id = e.target.dataset.cancel;
   if (id) api('job_cancel', { id }).then(kickPoll);
   const retry = e.target.dataset.retry;
@@ -2552,6 +2572,7 @@ $$('#langs [data-lang]').forEach(b => {
     return;
   }
   $('#appVersion').textContent = 'v' + r.version;
+  S.logFile = r.log_file || '';
   checkUpdate();
   setInterval(checkUpdate, 4 * 3600 * 1000);  // also while the app stays open for days
   document.body.classList.toggle('in-app', !!S.platform.window);

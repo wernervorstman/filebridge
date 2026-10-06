@@ -38,6 +38,20 @@ class App:
         with self._log_lock:
             self._log.append({'t': time.strftime('%H:%M:%S'), 'level': level, 'msg': msg})
             del self._log[:-500]
+            self._log_to_file(level, msg)
+
+    LOG_FILE = os.path.join(os.path.expanduser('~/.filebridge'), 'filebridge.log')
+
+    def _log_to_file(self, level, msg):
+        """Keep the log on disk too (at most ~2 MB in two files), so a problem can be looked up after closing."""
+        try:
+            path = self.LOG_FILE
+            if os.path.exists(path) and os.path.getsize(path) > 1024 * 1024:
+                os.replace(path, path + '.1')
+            with open(path, 'a', encoding='utf-8') as f:
+                f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} {level.upper():5} {msg}\n")
+        except OSError:
+            pass  # the log on screen still works
 
     def call(self, name, body):
         fn = getattr(self, 'api_' + name, None)
@@ -137,7 +151,7 @@ class App:
                 'platform': {'file_manager': system.file_manager_name(), 'keychain': system.keychain_name(), 'window': system.WINDOW is not None,
                              'sep': os.sep},
                 'plugins': self.plugins.list(), 'status': self._status(), 'settings': self.settings.all(),
-                'version': __version__,
+                'version': __version__, 'log_file': self.LOG_FILE,
                 'ignore': sync.DEFAULT_IGNORE}
 
     def api_jobs(self, b):

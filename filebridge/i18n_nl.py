@@ -231,4 +231,20 @@ NL = {
     '{n} skipped by your filter': '{n} overgeslagen door je filter',
     '{n} uploaded': '{n} geüpload',
     '{panel} detected.': '{panel} herkend.',
+    'The server does not accept this file name (553). Rename it without special characters, spaces or accents, and try again.':
+        'De server accepteert deze bestandsnaam niet (553). Geef het bestand een naam zonder speciale tekens, spaties of accenten en probeer het opnieuw.',
+    'The server is full, or the storage quota of your hosting account is used up (552). Make room or ask your hosting provider.':
+        'De server is vol, of de opslagruimte van je hostingaccount is op (552). Maak ruimte of vraag het je hostingprovider.',
+    'The server refused to write this file (550): usually no permission in this folder, a file that is locked or in use, or a file name the server does not accept (special characters, accents, very long names). Check the permissions of the folder and the file name.':
+        'De server weigerde dit bestand te schrijven (550): meestal geen schrijfrechten in deze map, een bestand dat vergrendeld of in gebruik is, of een bestandsnaam die de server niet accepteert (speciale tekens, accenten, heel lange namen). Controleer de rechten van de map en de bestandsnaam.',
+    'The server had a temporary problem with this file. Retry usually helps.':
+        'De server had een tijdelijk probleem met dit bestand. Opnieuw proberen helpt meestal.',
+    'The connection dropped during the transfer: the server or the network closed it. Retry usually helps. If it keeps happening, lower the number of simultaneous transfers in Site Manager → Transfer Settings.':
+        'De verbinding viel weg tijdens het overzetten: de server of het netwerk verbrak hem. Opnieuw proberen helpt meestal. Gebeurt het vaker, verlaag dan het aantal gelijktijdige overdrachten in Sitebeheer → Overdrachtsinstellingen.',
+    'The file or its folder no longer exists, or the folder could not be created on the server.':
+        'Het bestand of de map bestaat niet meer, of de map kon niet op de server worden gemaakt.',
+    'The server logged you out during the transfer (530). Reconnect and retry.':
+        'De server heeft je tijdens het overzetten uitgelogd (530). Maak opnieuw verbinding en probeer het nog eens.',
+    'No permission to write this file: the folder (or the file that is already there) does not allow it. Check the permissions of the folder, for example with Permissions on the server side.':
+        'Geen toestemming om dit bestand te schrijven: de map (of het bestand dat er al staat) staat het niet toe. Controleer de rechten van de map, bijvoorbeeld met Rechten aan de serverkant.',
 }
