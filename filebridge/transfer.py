@@ -13,6 +13,7 @@ import threading
 import time
 
 from . import remote as R
+from .i18n import tr
 
 CHUNK = 256 * 1024
 # overwrite   – always replace
@@ -72,7 +73,7 @@ def _record_failure(job, direction, src, dst, err):
     """Remember a failed file so it can be retried; the rest of the job carries on."""
     with job._lock:
         job.failed.append({'direction': direction, 'src': src, 'dst': dst, 'error': str(err) or type(err).__name__})
-    job.log(f'Failed: {posixpath.basename(dst) if direction == "upload" else os.path.basename(dst)} – {err}', 'error')
+    job.log(tr('Failed: {name} – {error}', name=posixpath.basename(dst) if direction == 'upload' else os.path.basename(dst), error=err), 'error')
 
 
 def _skip(policy, src_size, src_mtime, dst_size, dst_mtime):
@@ -111,7 +112,7 @@ def _set_perm(job, sftp, path, which):
     except IOError as e:
         if not getattr(job, '_perm_warned', False):
             job._perm_warned = True
-            job.log(f'Could not set permissions after upload ({e}); the server may not allow it.', 'warn')
+            job.log(tr('Could not set permissions after upload ({error}); the server may not allow it.', error=e), 'warn')
 
 
 def set_dir_perm(job, sftp, path):
@@ -235,7 +236,7 @@ def run_parallel(job, sftp, tasks, work):
                     with lock:
                         if not getattr(job, '_conn_warned', False):
                             job._conn_warned = True
-                            job.log(f'Could not open an extra connection ({e}); continuing with fewer.', 'warn')
+                            job.log(tr('Could not open an extra connection ({error}); continuing with fewer.', error=e), 'warn')
                     return
             while not errors:
                 try:
@@ -413,8 +414,8 @@ def download_paths(job, sftp, remote_paths, local_dir, policy='overwrite'):
 
 
 def summary(counts, direction='upload'):
-    labels = {'uploaded': 'uploaded', 'downloaded': 'downloaded', 'resumed': 'resumed',
-              'skipped': 'skipped (already on the server)' if direction == 'upload' else 'skipped (already here)',
-              'failed': 'FAILED'}
-    parts = [f'{counts[k]} {labels[k]}' for k in ('uploaded', 'downloaded', 'resumed', 'skipped', 'failed') if counts.get(k)]
-    return ', '.join(parts) if parts else 'nothing to do'
+    labels = {'uploaded': '{n} uploaded', 'downloaded': '{n} downloaded', 'resumed': '{n} resumed',
+              'skipped': '{n} skipped (already on the server)' if direction == 'upload' else '{n} skipped (already here)',
+              'failed': '{n} FAILED'}
+    parts = [tr(labels[k], n=counts[k]) for k in ('uploaded', 'downloaded', 'resumed', 'skipped', 'failed') if counts.get(k)]
+    return ', '.join(parts) if parts else tr('nothing to do')

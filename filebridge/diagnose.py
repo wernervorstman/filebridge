@@ -10,7 +10,8 @@ import ssl
 import time
 import urllib.request
 
-from .common import ApiError
+from .common import ApiError, LoginFailed
+from .i18n import tr
 from .sites import default_port
 
 # login page of each hosting panel: (port, words that give it away in the address or the page)
@@ -95,7 +96,7 @@ def test_connection(site, password, passphrase, remote_classes):
     host, is_ftp = site['host'], site.get('protocol') == 'ftp'
     port = int(site.get('port') or default_port(site))
     steps, fixes = [], []
-    add = lambda name, ok, detail='': steps.append({'name': name, 'ok': ok, 'detail': detail})
+    add = lambda name, ok, detail='': steps.append({'name': tr(name), 'ok': ok, 'detail': detail})
     panel_job = concurrent.futures.ThreadPoolExecutor(1).submit(detect_panel, host) if is_ftp else None
 
     def finish():
@@ -105,10 +106,10 @@ def test_connection(site, password, passphrase, remote_classes):
             except Exception:
                 panel = None
             if panel:
-                add('Hosting panel', None, f'{PANEL_NAMES[panel]} detected. {USERNAME_HINT[panel]}')
+                add('Hosting panel', None, tr('{panel} detected.', panel=PANEL_NAMES[panel]) + ' ' + tr(USERNAME_HINT[panel]))
                 better = username_suggestion(panel, site.get('username'))
                 if better:
-                    fixes.append({'label': f'Use "{better}" as username', 'patch': {'username': better}})
+                    fixes.append({'label': tr('Use "{user}" as username', user=better), 'patch': {'username': better}})
         return {'steps': steps, 'fixes': fixes}
 
     # 1. name lookup
@@ -116,27 +117,27 @@ def test_connection(site, password, passphrase, remote_classes):
         ips = sorted({a[4][0] for a in socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)})
         add('Server name', True, f'{host} → {", ".join(ips[:3])}')
     except OSError as e:
-        add('Server name', False, f'"{host}" could not be found ({e}). Check the spelling of Host.')
+        add('Server name', False, tr('"{host}" could not be found ({error}). Check the spelling of Host.', host=host, error=e))
         return finish()
 
     # 2. port
     try:
         socket.create_connection((host, port), 10).close()
-        add('Port', True, f'port {port} is open')
+        add('Port', True, tr('port {port} is open', port=port))
     except TimeoutError:
-        detail = f'port {port} does not answer.'
+        detail = tr('port {port} does not answer.', port=port)
         if is_ftp:
-            detail += ' The network you are on may block FTP – public, hotel and work wifi often do.'
+            detail += ' ' + tr('The network you are on may block FTP – public, hotel and work wifi often do.')
             ssh = [p for p in (22, int(site.get('fallback_port') or 0)) if p and p != port and _port_open(host, p)]
             if ssh:
-                detail += f' SSH/SFTP port {ssh[0]} is open on this server.'
-                fixes.append({'label': f'Switch to SFTP on port {ssh[0]}',
+                detail += ' ' + tr('SSH/SFTP port {port} is open on this server.', port=ssh[0])
+                fixes.append({'label': tr('Switch to SFTP on port {port}', port=ssh[0]),
                               'patch': {'protocol': 'sftp', 'port': ssh[0]}})
         add('Port', False, detail)
         return finish()
     except ConnectionRefusedError:
-        add('Port', False, f'the server refused port {port}. Check the port (FTP 21, FTPS 990, SFTP 22 or '
-                           f'the SSH port of your hosting provider).')
+        add('Port', False, tr('the server refused port {port}. Check the port (FTP 21, FTPS 990, SFTP 22 or the SSH port '
+                              'of your hosting provider).', port=port))
         return finish()
     except OSError as e:
         add('Port', False, f'port {port}: {e}')
@@ -147,41 +148,46 @@ def test_connection(site, password, passphrase, remote_classes):
         hello = '' if (is_ftp and site.get('encryption') == 'implicit') else _greeting(host, port, site.get('protocol'))
         if hello:
             if is_ftp and hello.startswith('SSH-'):
-                add('Server type', False, f'this port speaks SSH ({hello[:60]}), not FTP. Choose SFTP as protocol.')
-                fixes.append({'label': 'Switch to SFTP', 'patch': {'protocol': 'sftp'}})
+                add('Server type', False, tr('this port speaks SSH ({greeting}), not FTP. Choose SFTP as protocol.', greeting=hello[:60]))
+                fixes.append({'label': tr('Switch to SFTP'), 'patch': {'protocol': 'sftp'}})
                 return finish()
             if not is_ftp and hello[:3].isdigit():
-                add('Server type', False, f'this port speaks FTP ({hello[:60]}), not SFTP. Choose FTP as protocol.')
-                fixes.append({'label': 'Switch to FTP', 'patch': {'protocol': 'ftp'}})
+                add('Server type', False, tr('this port speaks FTP ({greeting}), not SFTP. Choose FTP as protocol.', greeting=hello[:60]))
+                fixes.append({'label': tr('Switch to FTP'), 'patch': {'protocol': 'ftp'}})
                 return finish()
             add('Server type', True, hello[:120])
     except OSError as e:
-        add('Server type', None, f'no greeting ({e})')
+        add('Server type', None, tr('no greeting ({error})', error=e))
 
     # 4. encryption + login: the real connection
     auth = site.get('auth', 'password')
     if auth == 'anonymous':
         site, password = {**site, 'username': 'anonymous'}, 'anonymous@'
     elif auth in ('password', 'ask') and not password:
-        add('Login', None, 'no password to test with – type one in the Password field or in the prompt.')
+        add('Login', None, tr('no password to test with – type one in the Password field or in the prompt.'))
         return finish()
     r = (FtpRemote if is_ftp else Remote)(site, password, passphrase)
     try:
         r.connect()
     except ApiError as e:
         msg = str(e)
-        if msg.startswith('Login failed'):
+        if isinstance(e, LoginFailed):
             add('Encryption', True, 'OK') if is_ftp else None
-            add('Login', False, msg.replace('Login failed: ', ''))
+            detail = tr('wrong username, password or key.')
+            if e.tip:
+                detail += ' ' + tr('Tip:') + ' ' + e.tip
+            if e.server_reply:
+                detail += ' ' + tr('Server reply: {reply}', reply=e.server_reply)
+            add('Login', False, detail)
         elif 'certificate' in msg.lower() or 'TLS' in msg:
             add('Encryption', False, msg)
         else:
             add('Connection', False, msg)
         return finish()
     try:
-        add('Encryption', True if 'NOT' not in r.fingerprint else None, r.fingerprint) if is_ftp else \
-            add('Host key', True, r.fingerprint + (' (new – remembered)' if r.new_host_key else ''))
-        add('Login', True, f'logged in as {site.get("username") or "anonymous"}')
+        add('Encryption', True if r.encrypted else None, r.fingerprint) if is_ftp else \
+            add('Host key', True, r.fingerprint + (' ' + tr('(new – remembered)') if r.new_host_key else ''))
+        add('Login', True, tr('logged in as {user}', user=site.get('username') or 'anonymous'))
         try:
             add('Home folder', True, r.home())
         except Exception as e:

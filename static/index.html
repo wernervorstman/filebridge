@@ -12,27 +12,30 @@
 <body>
 <header class="topbar">
   <div class="brand"><span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V10M12 19V5M20 19v-7"/></svg></span>FileBridge</div>
-  <select id="siteSelect" title="Saved sites"></select>
-  <button id="btnConnect" class="primary">Connect</button>
-  <button id="btnDisconnect" hidden>Disconnect</button>
-  <span id="connStatus" class="status">Not connected</span>
-  <button id="btnQuick" title="Connect without saving a site">Quickconnect</button>
+  <select id="siteSelect" title="Saved sites" data-t-title="Saved sites"></select>
+  <button id="btnConnect" class="primary" data-t="Connect">Connect</button>
+  <button id="btnDisconnect" hidden data-t="Disconnect">Disconnect</button>
+  <span id="connStatus" class="status" data-t="Not connected">Not connected</span>
+  <button id="btnQuick" data-t="Quickconnect" data-t-title="Connect without saving a site" title="Connect without saving a site">Quickconnect</button>
   <div class="spacer"></div>
-  <button id="btnSync" title="Synchronized browsing: open the same subfolder on both sides">⇄ Sync browsing</button>
-  <button id="btnSites">Site Manager</button>
-  <button id="btnCompare">Compare &amp; sync</button>
-  <button id="btnDeploy">Deploy</button>
-  <button id="btnPlugins">Plugins ▾</button>
-  <button id="btnSettings" title="Filters, speed limits, editing">Settings</button>
-  <button id="btnQuit" class="quit" title="Close FileBridge" aria-label="Close FileBridge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 3v9"/><path d="M6.3 6.3a8 8 0 1 0 11.4 0"/></svg></button>
+  <button id="btnSync" class="icon" data-t-title="Synchronized browsing: open the same subfolder on both sides" title="Synchronized browsing: open the same subfolder on both sides" aria-label="Sync browsing">⇄</button>
+  <button id="btnSites" data-t="Site Manager">Site Manager</button>
+  <button id="btnCompare" data-t="Compare &amp; sync">Compare &amp; sync</button>
+  <button id="btnDeploy" data-t="Deploy">Deploy</button>
+  <button id="btnPlugins" data-t="Plugins ▾">Plugins ▾</button>
+  <div class="langs" id="langs">
+    <button data-lang="en" title="English">🇬🇧</button><button data-lang="nl" title="Nederlands">🇳🇱</button><button data-lang="es" title="Español">🇪🇸</button>
+  </div>
+  <button id="btnSettings" class="icon" data-t-title="Settings" title="Settings" aria-label="Settings"><svg class="bi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+  <button id="btnQuit" class="quit" data-t-title="Close FileBridge" title="Close FileBridge" aria-label="Close FileBridge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 3v9"/><path d="M6.3 6.3a8 8 0 1 0 11.4 0"/></svg></button>
 </header>
 <form id="quickbar" class="quickbar" hidden autocomplete="off" onsubmit="return false">
-  <label>Host <input name="host" placeholder="sftp://example.com" spellcheck="false"></label>
-  <label>Username <input name="username" spellcheck="false"></label>
-  <label>Password <input name="password" type="password" autocomplete="new-password"></label>
-  <label>Port <input name="port" class="qport" placeholder="22"></label>
-  <button type="submit" class="primary" id="btnQuickGo">Quickconnect</button>
-  <span class="muted qhint">Start the host with sftp://, ftp://, ftps:// or ftpes://. Nothing is saved.</span>
+  <label><span data-t="Host">Host</span> <input name="host" placeholder="sftp://example.com" spellcheck="false"></label>
+  <label><span data-t="Username">Username</span> <input name="username" spellcheck="false"></label>
+  <label><span data-t="Password">Password</span> <input name="password" type="password" autocomplete="new-password"></label>
+  <label><span data-t="Port">Port</span> <input name="port" class="qport" placeholder="22"></label>
+  <button type="submit" class="primary" id="btnQuickGo" data-t="Quickconnect">Quickconnect</button>
+  <span class="muted qhint" data-t="Start the host with sftp://, ftp://, ftps:// or ftpes://. Nothing is saved.">Start the host with sftp://, ftp://, ftps:// or ftpes://. Nothing is saved.</span>
 </form>
 
 <nav id="connTabs" class="conntabs" hidden></nav>
@@ -41,25 +44,25 @@
   <section class="pane" id="paneRemote"></section>
 </main>
 
-<div id="hsplit" class="hsplit" title="Drag to resize the queue / log · double-click to reset"></div>
+<div id="hsplit" class="hsplit" data-t-title="Drag to resize the queue / log · double-click to reset" title="Drag to resize the queue / log · double-click to reset"></div>
 <section class="bottom">
   <div class="bottom-head">
     <div class="tabs">
-      <button class="tab active" data-tab="queue">Queue <span id="queueCount" class="badge" hidden></span></button>
-      <button class="tab" data-tab="log">Log</button>
-      <button class="tab" data-tab="edits" id="editTab" hidden>Edited files <span id="editCount" class="badge"></span></button>
+      <button class="tab active" data-tab="queue"><span data-t="Queue">Queue</span> <span id="queueCount" class="badge" hidden></span></button>
+      <button class="tab" data-tab="log" data-t="Log">Log</button>
+      <button class="tab" data-tab="edits" id="editTab" hidden><span data-t="Edited files">Edited files</span> <span id="editCount" class="badge"></span></button>
     </div>
     <div class="spacer"></div>
-    <label class="inline">If file exists
+    <label class="inline"><span data-t="If file exists">If file exists</span>
       <select id="policy">
-        <option value="skip_exists">Skip if exists</option>
-        <option value="newer">Overwrite if newer</option>
-        <option value="overwrite">Overwrite</option>
-        <option value="skip_same">Skip if same size</option>
-        <option value="resume">Resume</option>
+        <option value="skip_exists" data-t="Skip if exists">Skip if exists</option>
+        <option value="newer" data-t="Overwrite if newer">Overwrite if newer</option>
+        <option value="overwrite" data-t="Overwrite">Overwrite</option>
+        <option value="skip_same" data-t="Skip if same size">Skip if same size</option>
+        <option value="resume" data-t="Resume">Resume</option>
       </select>
     </label>
-    <button id="btnClearJobs" class="small">Clear finished</button>
+    <button id="btnClearJobs" class="small" data-t="Clear finished">Clear finished</button>
   </div>
   <div id="queue" class="tabpane"></div>
   <div id="log" class="tabpane" hidden></div>
@@ -68,16 +71,20 @@
 
 <footer class="appfoot">
   <span class="dl-mark"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V10M12 19V5M20 19v-7"/></svg>FileBridge</span>
-  <span>by DataLore · © <span id="year">2026</span></span>
+  <span><span data-t="by DataLore">by DataLore</span> · © <span id="year">2026</span></span>
   <span id="appVersion" class="muted"></span>
   <a href="#" id="updateLink" class="update-pill" hidden></a>
   <div class="spacer"></div>
-  <a href="https://datalore.eu" target="_blank" rel="noopener" title="Visit datalore.eu">datalore.eu <span class="arrow"><svg viewBox="0 0 24 24" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></a>
+  <a href="#" id="btnManual" data-t="Manual" data-t-title="Open the user manual">Manual</a>
+  <a href="https://datalore.eu" target="_blank" rel="noopener" data-t-title="Visit datalore.eu" title="Visit datalore.eu">datalore.eu <span class="arrow"><svg viewBox="0 0 24 24" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></a>
 </footer>
 
 <div id="menu" class="menu" hidden></div>
 <div id="modalRoot"></div>
 <div id="toasts"></div>
+<script src="/static/i18n.js"></script>
+<script src="/static/i18n-nl.js"></script>
+<script src="/static/i18n-es.js"></script>
 <script src="/static/app.js"></script>
 </body>
 </html>

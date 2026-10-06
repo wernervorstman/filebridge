@@ -7,7 +7,8 @@ import time
 from . import __version__, deploy, diagnose, extract, filezilla_import, localfs, perms, sync, system, transfer, webinfo
 from .editing import EditManager
 from .settings import Settings
-from .common import ApiError
+from .common import ApiError, LoginFailed
+from .i18n import tr
 from .jobs import JobManager
 from .plugins import PluginContext, PluginManager
 from .ftp import FtpRemote, FtpTimeout
@@ -41,7 +42,7 @@ class App:
     def call(self, name, body):
         fn = getattr(self, 'api_' + name, None)
         if not fn:
-            raise ApiError(f'Unknown action: {name}')
+            raise ApiError(tr('Unknown action: {name}', name=name))
         return fn(body) or {}
 
     @property
@@ -65,11 +66,11 @@ class App:
     def need_remote(self):
         r = self.remote
         if not r:
-            raise ApiError('Not connected')
+            raise ApiError(tr('Not connected'))
         if not r.alive():
             self._close_tab(self.active)
-            self.log(f'Connection to {r.site["host"]} lost', 'error')
-            raise ApiError('Connection lost – please reconnect')
+            self.log(tr('Connection to {host} lost', host=r.site['host']), 'error')
+            raise ApiError(tr('Connection lost – please reconnect'))
         return r
 
     @staticmethod
@@ -180,14 +181,14 @@ class App:
     def api_open_url(self, b):
         url = str(b.get('url') or '')
         if not url.lower().startswith(('http://', 'https://')):
-            raise ApiError('Only web addresses can be opened')
+            raise ApiError(tr('Only web addresses can be opened'))
         import webbrowser
         webbrowser.open(url)
 
     def api_quit(self, b):
         """Close FileBridge (Quit button). Runs a moment later so this answer still reaches the page."""
         if not self.quit_hook:
-            raise ApiError('Quitting is not available here')
+            raise ApiError(tr('Quitting is not available here'))
 
         def later():
             time.sleep(0.3)
@@ -206,7 +207,7 @@ class App:
         try:
             return {'id': self.edits.start(r, b['path'])}
         except (OSError, EOFError) as e:
-            raise ApiError(f'Could not open {posixpath.basename(b["path"])} for editing: {e}')
+            raise ApiError(tr('Could not open {name} for editing: {error}', name=posixpath.basename(b['path']), error=e))
 
     def api_edit_upload(self, b):
         try:
@@ -224,7 +225,7 @@ class App:
         """Open a local file with its default app, or in the text editor (edit=True)."""
         path = localfs.norm(b['path'])
         if not os.path.isfile(path):
-            raise ApiError('Not a file')
+            raise ApiError(tr('Not a file'))
         if b.get('edit'):
             system.edit_file(path, self.settings.get('editor'))
         else:
@@ -237,14 +238,14 @@ class App:
     def api_settings_save(self, b):
         s = self.settings.update(b.get('settings') or {})
         transfer.set_limits(s['limit_up'], s['limit_down'])
-        self.log('Settings saved')
+        self.log(tr('Settings saved'))
         return {'settings': s}
 
     # --- retry failed files ---
     def api_job_retry(self, b):
         old = self.jobs.get(b['id'])
         if not old or not old.failed:
-            raise ApiError('Nothing to retry')
+            raise ApiError(tr('Nothing to retry'))
         items = list(old.failed)
 
         def fn(job, sftp):
@@ -263,12 +264,12 @@ class App:
                 if it['direction'] == 'upload' and os.path.exists(it['src']):
                     job.total += os.path.getsize(it['src'])
             c = transfer._count(transfer.run_parallel(job, sftp, items, work))
-            msg = f'Retry finished: {transfer.summary(c, items[0]["direction"])}.'
+            msg = tr('Retry finished: {summary}.', summary=transfer.summary(c, items[0]['direction']))
             job.log(msg)
             return {'message': msg}
 
         old.failed = []  # handed over to the retry job
-        return self._job('retry', f'Retry {len(items)} failed file(s)', fn, list(old.refresh))
+        return self._job('retry', tr('Retry {n} failed file(s)', n=len(items)), fn, list(old.refresh))
 
     # --- import from FileZilla ---
     def api_filezilla_read(self, b):
@@ -286,7 +287,7 @@ class App:
     def api_filezilla_import(self, b):
         data = getattr(self, '_fz_cache', None)
         if not data:
-            raise ApiError('Read the FileZilla site list first')
+            raise ApiError(tr('Read the FileZilla site list first'))
         chosen = set(b.get('indexes') or [])
         imported = []
         for i, item in enumerate(data['sites']):
@@ -298,7 +299,7 @@ class App:
             saved = self.sites.save(site, password=item['password'] or None)
             imported.append(saved['name'])
         self._fz_cache = None  # don't keep passwords in memory
-        self.log(f'Imported {len(imported)} site(s) from FileZilla', 'ok')
+        self.log(tr('Imported {n} site(s) from FileZilla', n=len(imported)), 'ok')
         return {'imported': imported, 'sites': self.sites.list(), 'folders': self.sites.folders}
 
     # --- sites ---
@@ -309,12 +310,12 @@ class App:
         """Site Manager OK/Connect: save all changes (new, edited, deleted sites and folders) at once."""
         ids = self.sites.apply(b.get('sites') or [], b.get('deleted') or [], b.get('folders') or [],
                                b.get('secrets') or {})
-        self.log('Site Manager changes saved')
+        self.log(tr('Site Manager changes saved'))
         return {'ids': ids, 'sites': self.sites.list(), 'folders': self.sites.folders}
 
     def api_site_save(self, b):
         site = self.sites.save(b['site'], b.get('password'), b.get('passphrase'))
-        self.log(f'Site saved: {site["name"]}')
+        self.log(tr('Site saved: {name}', name=site['name']))
         return {'site': site, 'sites': self.sites.list()}
 
     def api_site_update(self, b):
@@ -347,8 +348,8 @@ class App:
             if not password:
                 raise ApiError('NEED_PASSWORD' + ('_ASK' if auth == 'ask' else ''))
         is_ftp = site.get('protocol') == 'ftp'
-        self.log(f'Connecting to {site["username"]}@{site["host"]}:{site.get("port")} '
-                 f'({"FTP" if is_ftp else "SFTP"}) …')
+        self.log(tr('Connecting to {user}@{host}:{port} ({protocol}) …', user=site['username'], host=site['host'],
+                    port=site.get('port'), protocol='FTP' if is_ftp else 'SFTP'))
         r = (FtpRemote if is_ftp else Remote)(site, password, passphrase)
         try:
             try:
@@ -358,9 +359,10 @@ class App:
                     raise
                 r = self._sftp_fallback(site, password, passphrase, e)
         except ApiError as e:
-            if str(e).startswith('Login failed') and auth in ('password', 'ask'):
-                said = str(e).split('Server: ', 1)[1] if 'Server: ' in str(e) else ''
-                self.log(f'Login failed for {site["username"]}@{site["host"]}' + (f' – server: {said}' if said else ''), 'error')
+            if isinstance(e, LoginFailed) and auth in ('password', 'ask'):
+                said = e.server_reply
+                self.log(tr('Login failed for {user}@{host}', user=site['username'], host=site['host'])
+                         + (' – ' + tr('server: {reply}', reply=said) if said else ''), 'error')
                 raise ApiError('NEED_PASSWORD:' + str(e))
             raise
         self._tab_seq += 1
@@ -370,8 +372,8 @@ class App:
         if b.get('password') and b.get('save') and auth == 'password':
             self.sites.save(site, password=b['password'])
         if r.new_host_key:
-            self.log(f'New server – host key trusted and remembered: {r.fingerprint}', 'warn')
-        self.log(f'Connected to {site["host"]} ({r.fingerprint})', 'ok')
+            self.log(tr('New server – host key trusted and remembered: {key}', key=r.fingerprint), 'warn')
+        self.log(tr('Connected to {host} ({key})', host=site['host'], key=r.fingerprint), 'ok')
         start = site.get('remote_dir') or ''
         try:
             path = r.list(start)[0] if start else r.home()
@@ -385,12 +387,12 @@ class App:
         port = int(site.get('fallback_port') or 22)
         alt = {**site, 'protocol': 'sftp', 'port': port, 'username': site.get('fallback_user') or site['username'],
                'auth': 'password' if site.get('auth') in ('password', 'ask') else site.get('auth')}
-        self.log(f'FTP did not answer – trying SFTP on port {port} as {alt["username"]} …', 'warn')
+        self.log(tr('FTP did not answer – trying SFTP on port {port} as {user} …', port=port, user=alt['username']), 'warn')
         r = Remote(alt, password, passphrase)
         try:
             r.connect()
         except ApiError as e:  # not a password prompt: the FTP password may simply not work for SSH
-            raise ApiError(f'{ftp_error} The SFTP fallback (port {port}) failed too: {e}')
+            raise ApiError(f'{ftp_error} ' + tr('The SFTP fallback (port {port}) failed too: {error}', port=port, error=e))
         return r
 
     def api_site_test(self, b):
@@ -402,13 +404,13 @@ class App:
         sid = b.get('site_id')
         password = b.get('password') or (self.sites.get_secret(sid, 'password') if sid else None)
         passphrase = b.get('passphrase') or (self.sites.get_secret(sid, 'passphrase') if sid else None)
-        self.log(f'Testing connection to {site["host"]} …')
+        self.log(tr('Testing connection to {host} …', host=site['host']))
         return diagnose.test_connection(site, password, passphrase, (Remote, FtpRemote))
 
     def api_panel_detect(self, b):
         panel = diagnose.detect_panel(b.get('host'))
         return {'panel': panel, 'name': diagnose.PANEL_NAMES.get(panel, ''),
-                'hint': diagnose.USERNAME_HINT.get(panel, ''),
+                'hint': tr(diagnose.USERNAME_HINT[panel]) if panel else '',
                 'suggest': diagnose.username_suggestion(panel, b.get('username'))}
 
     @staticmethod
@@ -416,7 +418,7 @@ class App:
         """A temporary site for the Quickconnect bar (never saved)."""
         host = (q.get('host') or '').strip()
         if not host:
-            raise ApiError('Fill in a host')
+            raise ApiError(tr('Fill in a host'))
         protocol, encryption = 'sftp', 'auto'
         for prefix, proto, enc in (('sftp://', 'sftp', 'auto'), ('ftps://', 'ftp', 'implicit'),
                                    ('ftpes://', 'ftp', 'explicit'), ('ftp://', 'ftp', 'auto')):
@@ -431,7 +433,7 @@ class App:
         try:
             port = int(q.get('port') or 0) or (22 if protocol == 'sftp' else 990 if encryption == 'implicit' else 21)
         except ValueError:
-            raise ApiError('Port must be a number')
+            raise ApiError(tr('Port must be a number'))
         user = (q.get('username') or '').strip()
         return {'id': 'quick', 'name': f'{user}@{host}' if user else host, 'host': host, 'port': port,
                 'username': user or 'anonymous', 'protocol': protocol, 'encryption': encryption,
@@ -442,12 +444,12 @@ class App:
         """Close a tab (default: the active one)."""
         r = self._close_tab(b.get('tab') or self.active)
         if r:
-            self.log(f'Disconnected from {r.site["host"]}')
+            self.log(tr('Disconnected from {host}', host=r.site['host']))
         return {'status': self._status()}
 
     def api_tab_switch(self, b):
         if b.get('tab') not in self.conns:
-            raise ApiError('This tab is closed')
+            raise ApiError(tr('This tab is closed'))
         self.active = b['tab']
         return {'status': self._status()}
 
@@ -460,14 +462,14 @@ class App:
             try:
                 path, entries = self.need_remote().list(b.get('path'))
             except IOError as e:
-                raise ApiError(f'Cannot open {b.get("path")}: {e}')
+                raise ApiError(tr('Cannot open {path}: {error}', path=b.get('path'), error=e))
             extra = {}
         shown = [e for e in entries if not self.settings.hidden(e['name'])]
         return {'path': path, 'entries': shown, 'filtered': len(entries) - len(shown), **extra}
 
     def _join(self, side, d, name):
         if '/' in name or name in ('', '.', '..'):
-            raise ApiError('Invalid name')
+            raise ApiError(tr('Invalid name'))
         return posixpath.join(d, name) if side == 'remote' else os.path.join(localfs.norm(d), name)
 
     def api_mkdir(self, b):
@@ -476,10 +478,10 @@ class App:
             try:
                 localfs.mkdir(path)
             except FileExistsError:
-                raise ApiError(f'"{b["name"]}" already exists')
+                raise ApiError(tr('"{name}" already exists', name=b['name']))
         else:
             self.need_remote().mkdir(path)
-        self.log(f'Created folder {path}')
+        self.log(tr('Created folder {path}', path=path))
 
     def api_rename(self, b):
         src = b['path']
@@ -489,41 +491,41 @@ class App:
             localfs.rename(src, dst)
         else:
             self.need_remote().rename(src, dst)
-        self.log(f'Renamed {src} → {dst}')
+        self.log(tr('Renamed {src} → {dst}', src=src, dst=dst))
 
     def api_move(self, b):
         if b['side'] == 'local':
             localfs.move(b['paths'], b['dest'])
         else:
             self.need_remote().move(b['paths'], b['dest'])
-        self.log(f'Moved {len(b["paths"])} item(s) to {b["dest"]}')
+        self.log(tr('Moved {n} item(s) to {dest}', n=len(b['paths']), dest=b['dest']))
 
     def api_delete(self, b):
         paths = b['paths']
         if b['side'] == 'local':
             localfs.delete(paths)
-            self.log(f'Moved {len(paths)} local item(s) to the Trash')
+            self.log(tr('Moved {n} local item(s) to the Trash', n=len(paths)))
         else:
             self.need_remote().delete(paths)
-            self.log(f'Deleted {len(paths)} item(s) on the server', 'warn')
+            self.log(tr('Deleted {n} item(s) on the server', n=len(paths)), 'warn')
 
     def api_chmod(self, b):
         """Change permissions: bits in `set` are switched on, bits in `clear` off, others kept per item."""
         side = b.get('side', 'remote')
         set_bits, clear_bits = int(b.get('set', 0)), int(b.get('clear', 0))
         if not (0 <= set_bits <= 0o7777 and 0 <= clear_bits <= 0o7777) or set_bits & clear_bits:
-            raise ApiError('Invalid permissions')
+            raise ApiError(tr('Invalid permissions'))
         only_if = None
         if str(b.get('only_if') or '').strip():
             try:
                 only_if = int(str(b['only_if']).strip(), 8)
                 assert 0 <= only_if <= 0o7777
             except (ValueError, AssertionError):
-                raise ApiError('"Only change items that currently have" must be octal, e.g. 777 or 0644')
+                raise ApiError(tr('"Only change items that currently have" must be octal, e.g. 777 or 0644'))
         apply_to = b.get('apply_to') if b.get('apply_to') in ('all', 'files', 'dirs') else 'all'
         recursive = bool(b.get('recursive'))
         paths = b['paths']
-        title = f'Permissions on {len(paths)} item(s){" + subfolders" if recursive else ""}'
+        title = tr('Permissions on {n} item(s) + subfolders' if recursive else 'Permissions on {n} item(s)', n=len(paths))
         fn = lambda job, sftp: perms.chmod_job(job, side, sftp, paths, set_bits, clear_bits,
                                                recursive, apply_to, only_if)
         return self._job('chmod', title, fn, [side], remote=side == 'remote')
@@ -534,34 +536,34 @@ class App:
         policy = b.get('policy') if b.get('policy') in transfer.POLICIES else 'overwrite'
         n = len(paths)
         first = os.path.basename(paths[0].rstrip('/')) if n else ''
-        what = f'"{first}"' if n == 1 else f'{n} items'
+        what = f'"{first}"' if n == 1 else tr('{n} items', n=n)
         skip = {localfs.norm(p) for p in b.get('skip') or []}
         if b['direction'] == 'upload':
             def fn(job, sftp):
                 job.skip_paths = skip
                 c = transfer.upload_paths(job, sftp, [localfs.norm(p) for p in paths], dest, policy)
-                msg = f'Upload finished: {transfer.summary(c, "upload")}.'
+                msg = tr('Upload finished: {summary}.', summary=transfer.summary(c, 'upload'))
                 job.log(msg)
                 return {'message': msg, 'counts': c}
-            return self._job('upload', f'Upload {what} → {dest}', fn, ['remote'])
+            return self._job('upload', tr('Upload {what} → {dest}', what=what, dest=dest), fn, ['remote'])
 
         def fn(job, sftp):
             c = transfer.download_paths(job, sftp, paths, localfs.norm(dest), policy)
-            msg = f'Download finished: {transfer.summary(c, "download")}.'
+            msg = tr('Download finished: {summary}.', summary=transfer.summary(c, 'download'))
             job.log(msg)
             return {'message': msg, 'counts': c}
-        return self._job('download', f'Download {what} → {dest}', fn, ['local'])
+        return self._job('download', tr('Download {what} → {dest}', what=what, dest=dest), fn, ['local'])
 
     # --- compare & sync ---
     def api_compare(self, b):
         patterns = [p.strip() for p in (b.get('ignore') or '').split(',') if p.strip()]
-        return self._job('compare', f'Compare {b["local"]} ↔ {b["remote"]}',
+        return self._job('compare', tr('Compare {local} ↔ {remote}', local=b['local'], remote=b['remote']),
                          lambda job, sftp: sync.compare(job, sftp, b['local'], b['remote'], patterns))
 
     def api_sync(self, b):
         items = [i for i in b['items'] if i.get('action') in
                  ('upload', 'download', 'delete_remote', 'delete_local')]
-        return self._job('sync', f'Sync {len(items)} item(s)',
+        return self._job('sync', tr('Sync {n} item(s)', n=len(items)),
                          lambda job, sftp: sync.apply(job, sftp, b['local_root'], b['remote_root'], items),
                          ['local', 'remote'])
 
@@ -573,7 +575,7 @@ class App:
             try:
                 return {'info': deploy.inspect(localfs.norm(zp))}
             except Exception as e:
-                raise ApiError(f'Not a valid zip file: {e}')
+                raise ApiError(tr('Not a valid zip file: {error}', error=e))
         r = self.need_remote()
         if r.has_command('unzip'):
             names = extract._remote_names(r, zp)
@@ -604,7 +606,7 @@ class App:
         r = self.need_remote()
         zp, dest = b['zip'], (b.get('dest') or '').strip()
         if not dest:
-            raise ApiError('Choose the server folder to extract into')
+            raise ApiError(tr('Choose the server folder to extract into'))
         perms = None
         if b.get('perms'):
             conv = lambda v: int(str(v).strip(), 8) if str(v or '').strip() else None
@@ -612,12 +614,12 @@ class App:
                 perms = (conv(b['perms'].get('dirs')), conv(b['perms'].get('files')))
                 assert all(p is None or 0 <= p <= 0o7777 for p in perms)
             except (ValueError, AssertionError):
-                raise ApiError('Permissions must be octal, e.g. 755 and 644')
+                raise ApiError(tr('Permissions must be octal, e.g. 755 and 644'))
             if perms == (None, None):
                 perms = None
         local = b.get('side') == 'local'
         if local and not os.path.isfile(localfs.norm(zp)):
-            raise ApiError(f'Zip not found: {zp}')
+            raise ApiError(tr('Zip not found: {path}', path=zp))
         kwargs = dict(
             dest=dest, into_folder=bool(b.get('into_folder')), strip=bool(b.get('strip', True)),
             policy='skip_exists' if b.get('policy') == 'skip_exists' else 'overwrite', perms=perms,
@@ -625,7 +627,7 @@ class App:
             method=b.get('method') if b.get('method') in ('auto', 'server', 'local') else 'auto',
             **({'zip_local': localfs.norm(zp)} if local else {'zip_remote': zp}))
         name = os.path.basename(zp)
-        return self._job('extract', f'{"Upload & extract" if local else "Extract"} {name} → {dest}',
+        return self._job('extract', tr('Upload & extract {name} → {dest}' if local else 'Extract {name} → {dest}', name=name, dest=dest),
                          lambda job, sftp: extract.run(job, r, sftp, **kwargs), ['remote'])
 
     # --- deploy ---
@@ -635,13 +637,13 @@ class App:
         except (ValueError, OSError) as e:
             raise ApiError(str(e))
         except Exception as e:
-            raise ApiError(f'Not a valid zip file: {e}')
+            raise ApiError(tr('Not a valid zip file: {error}', error=e))
 
     def api_deploy(self, b):
         cfg = b.get('cfg') or {}
         r = self.need_remote()
         site_name = r.site['name']
-        return self._job('deploy', f'Deploy to {r.site["host"]}:{cfg.get("remote_dir", "")}',
+        return self._job('deploy', tr('Deploy to {host}:{folder}', host=r.site['host'], folder=cfg.get('remote_dir', '')),
                          lambda job, sftp: deploy.run(job, r, sftp, cfg, site_name), ['remote'])
 
     # --- plugins ---
@@ -655,7 +657,7 @@ class App:
     def api_plugin_run(self, b):
         action = self.plugins.get(b['id'])
         if not action:
-            raise ApiError('Plugin action not found – try reloading plugins')
+            raise ApiError(tr('Plugin action not found – try reloading plugins'))
         side = b.get('side', 'local')
         needs_remote = side == 'remote' or action.get('side') == 'remote' or action.get('needs_connection')
         if needs_remote:

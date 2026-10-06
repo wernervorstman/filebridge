@@ -6,7 +6,8 @@ import threading
 
 import paramiko
 
-from .common import CONF_DIR, ApiError, make_entry
+from .common import CONF_DIR, ApiError, LoginFailed, make_entry
+from .i18n import tr
 
 
 KNOWN_HOSTS = os.path.join(CONF_DIR, 'known_hosts')
@@ -122,16 +123,16 @@ class Remote:
         try:
             c.connect(**kwargs)
         except paramiko.BadHostKeyException:
-            raise ApiError(f'WARNING: the host key of {s["host"]} has CHANGED. This can mean the server was '
-                           f'reinstalled, or that someone is intercepting the connection. Connection refused. '
-                           f'If you trust the change, remove the host from {KNOWN_HOSTS}.')
+            raise ApiError(tr('WARNING: the host key of {host} has CHANGED. This can mean the server was reinstalled, or '
+                              'that someone is intercepting the connection. Connection refused. If you trust the change, '
+                              'remove the host from {file}.', host=s['host'], file=KNOWN_HOSTS))
         except paramiko.AuthenticationException:
-            raise ApiError('Login failed: wrong username, password or key.')
+            raise LoginFailed(tr('Login failed: wrong username, password or key.'))
         except ConnectionRefusedError:
-            raise ApiError(f'The server refused the connection on port {kwargs["port"]}. SFTP normally uses '
-                           f'port 22, but some hosting providers use another port – check their SSH instructions.')
+            raise ApiError(tr('The server refused the connection on port {port}. SFTP normally uses port 22, but some '
+                              'hosting providers use another port – check their SSH instructions.', port=kwargs['port']))
         except (OSError, paramiko.SSHException) as e:
-            raise ApiError(f'Could not connect to {s["host"]}: {e}')
+            raise ApiError(tr('Could not connect to {host}: {error}', host=s['host'], error=e))
         self.new_host_key = len(c.get_host_keys().keys()) > before
         key = c.get_transport().get_remote_server_key()
         self.fingerprint = f'{key.get_name()} {key.fingerprint}'
@@ -203,27 +204,27 @@ class Remote:
     def mkdir(self, path):
         with self.lock:
             if exists(self.sftp, path):
-                raise ApiError(f'"{posixpath.basename(path)}" already exists')
+                raise ApiError(tr('"{name}" already exists', name=posixpath.basename(path)))
             self.sftp.mkdir(path)
 
     def rename(self, src, dst):
         with self.lock:
             if exists(self.sftp, dst):
-                raise ApiError(f'"{posixpath.basename(dst)}" already exists')
+                raise ApiError(tr('"{name}" already exists', name=posixpath.basename(dst)))
             self.sftp.rename(src, dst)
 
     def move(self, paths, dest):
         with self.lock:
             dest = self.sftp.normalize(dest)
             if not is_dir(self.sftp, dest):
-                raise ApiError(f'Folder not found: {dest}')
+                raise ApiError(tr('Folder not found: {path}', path=dest))
             for p in paths:
                 name = posixpath.basename(p.rstrip('/'))
                 if dest == p or dest.startswith(p.rstrip('/') + '/'):
-                    raise ApiError(f'Cannot move "{name}" into itself')
+                    raise ApiError(tr('Cannot move "{name}" into itself', name=name))
                 target = posixpath.join(dest, name)
                 if exists(self.sftp, target):
-                    raise ApiError(f'"{name}" already exists in {dest}')
+                    raise ApiError(tr('"{name}" already exists in {dest}', name=name, dest=dest))
                 self.sftp.rename(p, target)
 
     def delete(self, paths):

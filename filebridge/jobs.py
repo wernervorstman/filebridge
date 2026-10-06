@@ -5,6 +5,9 @@ import uuid
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 
+from . import i18n
+from .i18n import tr
+
 
 class Cancelled(Exception):
     pass
@@ -69,19 +72,21 @@ class JobManager:
     def submit(self, kind, title, fn, refresh=()):
         job = Job(kind, title, self._log)
         job.refresh = list(refresh)
+        job.lang = i18n.current()  # the job speaks the language of the request that started it
         with self.lock:
             self.jobs[job.id] = job
         self.pool.submit(self._run, job, fn)
         return job
 
     def _run(self, job, fn):
+        i18n.use(getattr(job, 'lang', 'en'))
         if job._cancel.is_set():
             job.status = 'cancelled'
             job.finished = time.time()
             return
         job.status = 'running'
         job.started = time.time()
-        self._log(f'Started: {job.title}')
+        self._log(tr('Started: {title}', title=job.title))
         try:
             result = fn(job)
             if result is not None:
@@ -89,23 +94,23 @@ class JobManager:
             if job.failed:
                 n = len(job.failed)
                 job.status = 'error'
-                job.error = f'{n} file(s) failed – the others were transferred. Click Retry to try the failed ones again.'
-                self._log(f'Finished with errors: {job.title} – {n} file(s) failed', 'error')
+                job.error = tr('{n} file(s) failed – the others were transferred. Click Retry to try the failed ones again.', n=n)
+                self._log(tr('Finished with errors: {title} – {n} file(s) failed', title=job.title, n=n), 'error')
             else:
                 job.status = 'done'
-                self._log(f'Finished: {job.title}', 'ok')
+                self._log(tr('Finished: {title}', title=job.title), 'ok')
         except Cancelled:
             job.status = 'cancelled'
-            self._log(f'Cancelled: {job.title}', 'warn')
+            self._log(tr('Cancelled: {title}', title=job.title), 'warn')
         except PermissionError as e:
             from .system import permission_hint  # e.g. macOS blocks Downloads/Documents until allowed
             job.status = 'error'
             job.error = permission_hint(e.filename) if e.filename else str(e)
-            self._log(f'Failed: {job.title} – {job.error}', 'error')
+            self._log(tr('Failed: {title} – {error}', title=job.title, error=job.error), 'error')
         except Exception as e:
             job.status = 'error'
             job.error = str(e) or type(e).__name__
-            self._log(f'Failed: {job.title} – {job.error}', 'error')
+            self._log(tr('Failed: {title} – {error}', title=job.title, error=job.error), 'error')
         finally:
             job.current = ''
             job.finished = time.time()

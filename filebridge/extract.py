@@ -13,12 +13,13 @@ import zipfile
 
 from . import deploy, transfer
 from . import remote as R
+from .i18n import tr
 
 
 def _remote_names(remote, zip_path):
     rc, out, err = remote.exec(f'unzip -Z1 {shlex.quote(zip_path)}', timeout=300)
     if rc != 0:
-        raise RuntimeError(f'Cannot read the zip on the server: {(err or out).strip()[:200]}')
+        raise RuntimeError(tr('Cannot read the zip on the server: {error}', error=(err or out).strip()[:200]))
     return [n for n in out.splitlines() if n.strip()]
 
 
@@ -32,8 +33,8 @@ def run(job, remote, sftp, *, dest, zip_local=None, zip_remote=None, into_folder
 
     has_unzip = method != 'local' and remote.has_command('unzip')
     if method == 'server' and not has_unzip:
-        raise ValueError('This server cannot run "unzip" (FTP, or SSH commands are not allowed). '
-                         'Choose "On this computer, then upload".')
+        raise ValueError(tr('This server cannot run "unzip" (FTP, or SSH commands are not allowed). '
+                            'Choose "On this computer, then upload".'))
     R.makedirs(sftp, target, lambda d: transfer.set_dir_perm(job, sftp, d))
     ts = time.strftime('%Y%m%d_%H%M%S')
 
@@ -48,7 +49,7 @@ def run(job, remote, sftp, *, dest, zip_local=None, zip_remote=None, into_folder
             rzip = zip_remote
         tmp = posixpath.join(target, f'.filebridge_extract_{ts}')
         try:
-            job.current = 'reading zip'
+            job.current = tr('reading zip')
             names = _remote_names(remote, rzip)
             top = deploy.top_folder(names) if strip else None
             src = posixpath.join(tmp, top) if top else tmp
@@ -58,26 +59,26 @@ def run(job, remote, sftp, *, dest, zip_local=None, zip_remote=None, into_folder
             if perms and perms[1] is not None:
                 cmd += f'find {q(src)} -type f -exec chmod {perms[1]:04o} {{}} +; '
             cmd += deploy.copy_contents_cmd(src, target, skip_existing=skip)
-            job.current = 'unpacking on the server'
+            job.current = tr('unpacking on the server')
             rc, _, err = remote.exec(cmd, timeout=1800)
             if rc != 0:
-                raise RuntimeError(f'Unpacking on the server failed: {err.strip()[:300]}')
+                raise RuntimeError(tr('Unpacking on the server failed: {error}', error=err.strip()[:300]))
         finally:
             remote.exec(f'rm -rf {q(tmp)}' + (f' {q(rzip)}' if temp_zip else ''), timeout=300)
         files = len([n for n in names if not n.endswith('/') and not n.startswith('__MACOSX/')])
-        how = f'{files} file(s), unpacked on the server' + (', existing files kept' if skip else '')
+        how = tr('{n} file(s), unpacked on the server', n=files) + (', ' + tr('existing files kept') if skip else '')
     else:
         with tempfile.TemporaryDirectory(prefix='filebridge_') as td:
             if zip_remote:
                 lz = os.path.join(td, 'archive.zip')
                 job.total += sftp.stat(zip_remote).st_size or 0
-                job.current = 'downloading zip'
+                job.current = tr('downloading zip')
                 transfer.download_file(job, sftp, zip_remote, lz, 'overwrite')
             else:
                 lz = zip_local
             info = deploy.inspect(lz)
             out = os.path.join(td, 'x')
-            job.current = 'unpacking on this computer'
+            job.current = tr('unpacking on this computer')
             with zipfile.ZipFile(lz) as z:
                 z.extractall(out)  # extractall refuses absolute and ../ paths
             root = os.path.join(out, info['top_folder']) if strip and info['top_folder'] else out
@@ -87,7 +88,7 @@ def run(job, remote, sftp, *, dest, zip_local=None, zip_remote=None, into_folder
 
     if delete_zip and zip_remote:
         sftp.remove(zip_remote)
-        how += '; zip deleted'
-    msg = f'Extracted {zip_name} into {target}: {how}.'
+        how += '; ' + tr('zip deleted')
+    msg = tr('Extracted {name} into {target}: {how}.', name=zip_name, target=target, how=how)
     job.log(msg, 'ok')
     return {'message': msg}

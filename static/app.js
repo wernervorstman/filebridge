@@ -8,11 +8,11 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 async function api(name, body = {}) {
   const r = await fetch('/api/' + name, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Token': window.FB_TOKEN },
+    headers: { 'Content-Type': 'application/json', 'X-Token': window.FB_TOKEN, 'X-Lang': LANG },
     body: JSON.stringify(body),
   });
   const j = await r.json();
-  if (!j.ok) throw new Error(j.error || 'Unknown error');
+  if (!j.ok) throw new Error(j.error || t('Unknown error'));
   return j;
 }
 
@@ -25,10 +25,11 @@ function fmtSize(n) {
 }
 function fmtDate(t) {
   if (!t) return '';
-  return new Date(t * 1000).toLocaleString(undefined, { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+  return new Date(t * 1000).toLocaleString(LOCALE, { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
-const typeKey = e => e.dir ? '(folders)' : (e.ext ? '.' + e.ext : '(no extension)');
-const typeLabel = e => e.dir ? 'Folder' : (e.ext ? e.ext.toUpperCase() + ' file' : 'File');
+const typeKey = e => e.dir ? t('(folders)') : (e.ext ? '.' + e.ext : t('(no extension)'));
+const typeLabel = e => e.dir ? t('Folder') : (e.ext ? t('{ext} file', { ext: e.ext.toUpperCase() }) : t('File'));
+const nFiles = n => n === 1 ? t('1 file') : t('{n} files', { n });
 const joinPath = (dir, name) => (dir.endsWith('/') ? dir : dir + '/') + name;
 const parentOf = p => { const q = p.replace(/\/+$/, ''); const i = q.lastIndexOf('/'); return i <= 0 ? '/' : q.slice(0, i); };
 const baseName = p => p.replace(/[\\/]+$/, '').split(/[\\/]/).pop();
@@ -51,6 +52,8 @@ const store = {
   get(k, d) { try { const v = localStorage.getItem('fb.' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
   set(k, v) { try { localStorage.setItem('fb.' + k, JSON.stringify(v)); } catch { /* ignore */ } },
 };
+
+translateStatic();  // the fixed texts in index.html, before anything else is shown
 
 const SVG = p => `<svg class="bi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
 const BTN_ICON = {
@@ -115,7 +118,7 @@ window.addEventListener('blur', hideMenu);
  * Show a modal. Resolves with {value, el} when a button is pressed (value null on Esc/cancel).
  * A button with `keep: true` calls onClick(el) without closing.
  */
-function modal({ title, body, buttons = [{ label: 'OK', value: 'ok', primary: true }], size = '', onOpen }) {
+function modal({ title, body, buttons = [{ label: t('OK'), value: 'ok', primary: true }], size = '', onOpen }) {
   return new Promise(resolve => {
     const ov = document.createElement('div');
     ov.className = 'overlay';
@@ -151,19 +154,19 @@ async function askText(title, label, value = '', type = 'text') {
   const { value: v, el } = await modal({
     title,
     body: `<label class="field">${esc(label)}<input id="askInput" type="${type}" value="${esc(value)}"></label>`,
-    buttons: [{ label: 'Cancel', value: null }, { label: 'OK', value: 'ok', primary: true }],
+    buttons: [{ label: t('Cancel'), value: null }, { label: t('OK'), value: 'ok', primary: true }],
   });
   return v ? $('#askInput', el).value : null;
 }
-async function confirmBox(title, message, okLabel = 'OK', danger = false) {
+async function confirmBox(title, message, okLabel = t('OK'), danger = false) {
   const { value } = await modal({
     title, body: `<p>${message}</p>`,
-    buttons: [{ label: 'Cancel', value: null }, { label: okLabel, value: 'ok', primary: !danger, danger }],
+    buttons: [{ label: t('Cancel'), value: null }, { label: okLabel, value: 'ok', primary: !danger, danger }],
   });
   return value === 'ok';
 }
 function showResult(title, text) {
-  modal({ title, body: `<pre class="result">${esc(text)}</pre>`, size: 'mid', buttons: [{ label: 'Close', value: null, primary: true }] });
+  modal({ title, body: `<pre class="result">${esc(text)}</pre>`, size: 'mid', buttons: [{ label: t('Close'), value: null, primary: true }] });
 }
 
 /* ---------------------------------------------------------------- panes */
@@ -191,38 +194,38 @@ class Pane {
     const r = this.remote;
     this.el.innerHTML = `
       <div class="pane-head">
-        <span class="pane-title">${r ? 'Server' : 'Local'}</span>
-        <button class="icon" data-a="up" title="Parent folder (⌘↑)" aria-label="Parent folder">${BTN_ICON.up}</button>
+        <span class="pane-title">${esc(r ? t('Server') : t('Local'))}</span>
+        <button class="icon" data-a="up" title="${esc(t('Parent folder (⌘↑)'))}" aria-label="${esc(t('Parent folder'))}">${BTN_ICON.up}</button>
         <input class="path" spellcheck="false" autocomplete="off">
-        ${r ? '' : `<button class="icon" data-a="pick" title="Choose a folder on this computer" aria-label="Choose folder">${BTN_ICON.folder}</button>`}
-        <button class="icon" data-a="refresh" title="Refresh – reload this folder" aria-label="Refresh">${BTN_ICON.refresh}</button>
-        <button class="icon" data-a="bookmarks" title="Bookmarks" aria-label="Bookmarks">${BTN_ICON.bookmark}</button>
-        <button class="icon" data-a="tree" title="Show / hide the folder tree" aria-label="Folder tree">${BTN_ICON.tree}</button>
+        ${r ? '' : `<button class="icon" data-a="pick" title="${esc(t('Choose a folder on this computer'))}" aria-label="${esc(t('Choose folder'))}">${BTN_ICON.folder}</button>`}
+        <button class="icon" data-a="refresh" title="${esc(t('Refresh – reload this folder'))}" aria-label="${esc(t('Refresh'))}">${BTN_ICON.refresh}</button>
+        <button class="icon" data-a="bookmarks" title="${esc(t('Bookmarks'))}" aria-label="${esc(t('Bookmarks'))}">${BTN_ICON.bookmark}</button>
+        <button class="icon" data-a="tree" title="${esc(t('Show / hide the folder tree'))}" aria-label="${esc(t('Folder tree'))}">${BTN_ICON.tree}</button>
       </div>
       <div class="toolbar">
-        <button data-a="transfer" class="primary" title="${r ? 'Download selected to the local folder' : 'Upload selected to the server folder'}">${r ? '← Download' : 'Upload →'}</button>
-        <button data-a="mkdir">New folder</button>
-        <button data-a="rename">Rename</button>
-        <button data-a="move">Move to…</button>
-        <button data-a="delete" class="danger">Delete</button>
-        <button data-a="chmod">Permissions</button>
-        <button data-a="types" title="Select all files of a type">Select type ▾</button>
-        <button data-a="permsel" title="Select all items with a certain permission">Select permission ▾</button>
-        <button data-a="selnew" title="Compare with the folder open on the other side and select what is missing or changed">Select new ▾</button>
-        <input class="filter" placeholder="Filter…" spellcheck="false">
-        <label class="chk" title="Show hidden files"><input type="checkbox" class="hidden-toggle"> Hidden</label>
+        <button data-a="transfer" class="primary" title="${esc(r ? t('Download selected to the local folder') : t('Upload selected to the server folder'))}">${esc(r ? t('← Download') : t('Upload →'))}</button>
+        <button data-a="mkdir">${esc(t('New folder'))}</button>
+        <button data-a="rename">${esc(t('Rename'))}</button>
+        <button data-a="move">${esc(t('Move to…'))}</button>
+        <button data-a="delete" class="danger">${esc(t('Delete'))}</button>
+        <button data-a="chmod">${esc(t('Permissions'))}</button>
+        <button data-a="types" title="${esc(t('Select all files of a type'))}">${esc(t('Select type ▾'))}</button>
+        <button data-a="permsel" title="${esc(t('Select all items with a certain permission'))}">${esc(t('Select permission ▾'))}</button>
+        <button data-a="selnew" title="${esc(t('Compare with the folder open on the other side and select what is missing or changed'))}">${esc(t('Select new ▾'))}</button>
+        <input class="filter" placeholder="${esc(t('Filter…'))}" spellcheck="false">
+        <label class="chk" title="${esc(t('Show hidden files'))}"><input type="checkbox" class="hidden-toggle"> ${esc(t('Hidden'))}</label>
       </div>
       <div class="pbody">
       <div class="tree" hidden></div>
       <div class="list" tabindex="0">
         <table>
           <thead><tr>
-            <th class="c-chk"><input type="checkbox" class="all" title="Select all"></th>
-            <th data-k="name" class="c-name">Name</th>
-            <th data-k="type" class="c-type">Type</th>
-            <th data-k="size" class="c-size num">Size</th>
-            <th data-k="mtime" class="c-date">Modified</th>
-            <th data-k="perms" class="c-perm">Permissions</th>
+            <th class="c-chk"><input type="checkbox" class="all" title="${esc(t('Select all'))}"></th>
+            <th data-k="name" class="c-name">${esc(t('Name'))}</th>
+            <th data-k="type" class="c-type">${esc(t('Type'))}</th>
+            <th data-k="size" class="c-size num">${esc(t('Size'))}</th>
+            <th data-k="mtime" class="c-date">${esc(t('Modified'))}</th>
+            <th data-k="perms" class="c-perm">${esc(t('Permissions'))}</th>
           </tr></thead>
           <tbody></tbody>
         </table>
@@ -273,7 +276,7 @@ class Pane {
       const ent = this.byName(tr.dataset.name);
       if (ent?.dir) return;
       else if (ent) {  // transfer just this file; what is ticked stays as it is
-        if (!S.status.connected) return toast('Connect to a server first', 'error');
+        if (!S.status.connected) return toast(t('Connect to a server first'), 'error');
         startTransfer(this.remote ? 'download' : 'upload', [ent.path], this.other.path);
       }
     });
@@ -311,7 +314,7 @@ class Pane {
         if (tr?.dataset.up) dir = this.parentPath;
         else if (tr) dir = this.byName(tr.dataset.name).path;
         S.osDropTarget = { side: this.side, dir };
-        if (!S.platform?.window) toast('Dragging files from Finder or Explorer works in the FileBridge app window');
+        if (!S.platform?.window) toast(t('Dragging files from Finder or Explorer works in the FileBridge app window'));
         return;
       }
       let data;
@@ -390,7 +393,7 @@ class Pane {
     for (const th of $$('th[data-k]', this.el)) {
       const grip = document.createElement('span');
       grip.className = 'col-grip';
-      grip.title = 'Drag to resize · double-click to reset';
+      grip.title = t('Drag to resize · double-click to reset');
       th.append(grip);
       grip.addEventListener('mousedown', e => this.startColResize(e, th));
       grip.addEventListener('dblclick', e => {
@@ -510,7 +513,7 @@ class Pane {
     if (this.remote && !S.status.connected) {
       this.tbody.innerHTML = '';
       empty.hidden = false;
-      empty.innerHTML = 'Not connected.<br>Choose a site at the top and click <b>Connect</b>.';
+      empty.innerHTML = esc(t('Not connected.')) + '<br>' + t('Choose a site at the top and click <b>Connect</b>.');
       this.renderFoot();
       return;
     }
@@ -526,7 +529,7 @@ class Pane {
       if (d) diffCount[d === 'new' ? 'new' : 'changed']++;
       html += `<tr data-name="${esc(e.name)}" class="${s ? 'sel' : ''} ${e.hidden ? 'hidden-file' : ''} ${d ? 'cmp-' + d : ''} ${e.dir ? 'is-dir' : ''}" draggable="true">
         <td class="c-chk"><input type="checkbox" ${s ? 'checked' : ''}></td>
-        <td class="c-name" title="${esc(e.name)}">${e.dir ? ICON.dir : ICON.file}<span class="nm">${esc(e.name)}${e.link ? ' <span class="muted">↪</span>' : ''}</span>${publicHere && !e.dir && isRisky(e.name) ? '<span class="warn-pub" title="This file is in a public web folder: anyone who knows the address can download it.">⚠ public</span>' : ''}</td>
+        <td class="c-name" title="${esc(e.name)}">${e.dir ? ICON.dir : ICON.file}<span class="nm">${esc(e.name)}${e.link ? ' <span class="muted">↪</span>' : ''}</span>${publicHere && !e.dir && isRisky(e.name) ? `<span class="warn-pub" title="${esc(t('This file is in a public web folder: anyone who knows the address can download it.'))}">${esc(t('⚠ public'))}</span>` : ''}</td>
         <td class="c-type">${esc(typeLabel(e))}</td>
         <td class="c-size num">${e.dir ? '' : fmtSize(e.size)}</td>
         <td class="c-date">${fmtDate(e.mtime)}</td>
@@ -535,7 +538,7 @@ class Pane {
     }
     this.tbody.innerHTML = html;
     empty.hidden = vis.length > 0;
-    empty.textContent = this.filter || this.typeFilter.size ? 'No matches' : 'Empty folder';
+    empty.textContent = this.filter || this.typeFilter.size ? t('No matches') : t('Empty folder');
     const all = $('input.all', this.el);
     all.checked = vis.length > 0 && vis.every(x => this.sel.has(x.name));
     all.indeterminate = !all.checked && vis.some(x => this.sel.has(x.name));
@@ -547,16 +550,16 @@ class Pane {
     const vis = this.remote && !S.status.connected ? [] : this.visible();
     const sel = this.selected();
     const files = vis.filter(e => !e.dir).length;
-    $('.count', this.el).textContent = (vis.length ? `${vis.length - files} folders, ${files} files` : '')
-      + (this.filtered && !(this.remote && !S.status.connected) ? ` · ${this.filtered} filtered` : '');
+    $('.count', this.el).textContent = (vis.length ? [vis.length - files === 1 ? t('1 folder') : t('{n} folders', { n: vis.length - files }), nFiles(files)].join(', ') : '')
+      + (this.filtered && !(this.remote && !S.status.connected) ? ' · ' + t('{n} filtered', { n: this.filtered }) : '');
     const ti = $('.typeinfo', this.el);
-    ti.innerHTML = this.typeFilter.size ? `<span class="type-on">Showing only ${esc([...this.typeFilter].join(', '))} <a href="#">show all</a></span>` : '';
+    ti.innerHTML = this.typeFilter.size ? `<span class="type-on">${esc(t('Showing only {types}', { types: [...this.typeFilter].join(', ') }))} <a href="#">${esc(t('show all'))}</a></span>` : '';
     ti.querySelector('a')?.addEventListener('click', e => { e.preventDefault(); this.typeFilter.clear(); this.render(); });
     const size = sel.reduce((n, e) => n + (e.size || 0), 0);
-    $('.selinfo', this.el).textContent = sel.length ? `${sel.length} selected${size ? ' (' + fmtSize(size) + ')' : ''}` : '';
+    $('.selinfo', this.el).textContent = sel.length ? (sel.length === 1 ? t('1 selected') : t('{n} selected', { n: sel.length })) + (size ? ' (' + fmtSize(size) + ')' : '') : '';
     const dc = this.diffCount;
     $('.diffinfo', this.el).innerHTML = dc && (dc.new || dc.changed)
-      ? `<span class="cmp-legend new">${dc.new} not on ${this.remote ? 'local' : 'server'}</span><span class="cmp-legend changed">${dc.changed} changed</span>` : '';
+      ? `<span class="cmp-legend new">${esc(this.remote ? t('{n} not on local', { n: dc.new }) : t('{n} not on server', { n: dc.new }))}</span><span class="cmp-legend changed">${esc(t('{n} changed', { n: dc.changed }))}</span>` : '';
   }
 
   openDir(path) {
@@ -623,7 +626,7 @@ class Pane {
     ({
       up: () => this.parentPath && this.load(this.parentPath),
       refresh: () => this.refresh(),
-      pick: async () => { const p = await pickLocal('folder', { start: this.path, prompt: 'Open folder' }); if (p) this.load(p); },
+      pick: async () => { const p = await pickLocal('folder', { start: this.path, prompt: t('Open folder') }); if (p) this.load(p); },
       bookmarks: () => bookmarksMenu(r.left, r.bottom + 4),
       tree: () => { this.showTree = !this.showTree; store.set(this.side + '.tree', this.showTree); this.treeEl.hidden = !this.showTree; this.renderTree(); },
       transfer: () => this.transfer(),
@@ -647,31 +650,31 @@ class Pane {
     const n = sel.length;
     const conn = S.status.connected;
     const items = [
-      n === 1 && sel[0].dir ? { label: 'Open', action: () => this.load(sel[0].path) } : null,
-      { label: this.remote ? `Download${n > 1 ? ' ' + n + ' items' : ''}` : `Upload${n > 1 ? ' ' + n + ' items' : ''}`, hint: this.remote ? '←' : '→', disabled: !n || !conn, action: () => this.transfer() },
+      n === 1 && sel[0].dir ? { label: t('Open'), action: () => this.load(sel[0].path) } : null,
+      { label: this.remote ? (n > 1 ? t('Download {n} items', { n }) : t('Download')) : (n > 1 ? t('Upload {n} items', { n }) : t('Upload')), hint: this.remote ? '←' : '→', disabled: !n || !conn, action: () => this.transfer() },
       n === 1 && !sel[0].dir && this.remote
-        ? { label: 'View/Edit', hint: 'opens in your editor', disabled: !conn, action: () => editRemote(sel[0]) } : null,
-      n === 1 && !sel[0].dir && !this.remote ? { label: 'Open', action: () => api('open_local', { path: sel[0].path }).catch(e => toast(e.message, 'error')) } : null,
-      n === 1 && !sel[0].dir && !this.remote ? { label: 'Edit', hint: 'in your editor', action: () => api('open_local', { path: sel[0].path, edit: true }).catch(e => toast(e.message, 'error')) } : null,
+        ? { label: t('View/Edit'), hint: t('opens in your editor'), disabled: !conn, action: () => editRemote(sel[0]) } : null,
+      n === 1 && !sel[0].dir && !this.remote ? { label: t('Open'), action: () => api('open_local', { path: sel[0].path }).catch(e => toast(e.message, 'error')) } : null,
+      n === 1 && !sel[0].dir && !this.remote ? { label: t('Edit'), hint: t('in your editor'), action: () => api('open_local', { path: sel[0].path, edit: true }).catch(e => toast(e.message, 'error')) } : null,
       n === 1 && !sel[0].dir && sel[0].ext === 'zip'
-        ? { label: this.remote ? 'Extract here…' : 'Upload & extract…', disabled: !conn, action: () => openExtract(this) } : null,
+        ? { label: this.remote ? t('Extract here…') : t('Upload & extract…'), disabled: !conn, action: () => openExtract(this) } : null,
       { sep: true },
-      { label: 'Rename…', hint: 'F2', disabled: n !== 1, action: () => this.rename() },
-      { label: 'Move to…', disabled: !n, action: () => this.moveAsk() },
-      { label: 'Permissions…', disabled: !n || (this.remote && !conn), action: () => this.chmod() },
-      { label: this.remote ? 'Delete…' : 'Move to Trash…', danger: true, disabled: !n, action: () => this.del() },
+      { label: t('Rename…'), hint: 'F2', disabled: n !== 1, action: () => this.rename() },
+      { label: t('Move to…'), disabled: !n, action: () => this.moveAsk() },
+      { label: t('Permissions…'), disabled: !n || (this.remote && !conn), action: () => this.chmod() },
+      { label: this.remote ? t('Delete…') : t('Move to Trash…'), danger: true, disabled: !n, action: () => this.del() },
       { sep: true },
-      { label: 'New folder…', action: () => this.mkdir() },
-      { label: 'Refresh', action: () => this.refresh() },
-      this.remote && n === 1 && webUrl(sel[0].path) ? { label: 'Open in browser', action: () => api('open_url', { url: webUrl(sel[0].path) + (sel[0].dir ? '/' : '') }).catch(e => toast(e.message, 'error')) } : null,
-      this.remote && n >= 1 && webUrl(sel[0].path) ? { label: n > 1 ? 'Copy URLs' : 'Copy URL', action: () => copyText(sel.map(x => webUrl(x.path) + (x.dir ? '/' : '')).join('\n')).then(ok => toast(ok ? 'Web address copied' : 'Could not copy', ok ? '' : 'error')) } : null,
-      this.remote && n === 1 && !webUrl(sel[0].path) && isPublicDir(sel[0].path) && S.status.site_id !== 'quick' ? { label: 'Open in browser…', hint: 'set web address', action: () => { toast('Set the web address for this folder in Site Manager → Advanced'); openSiteManager(S.status.site_id); } } : null,
-      { label: 'Copy path', disabled: !n, action: () => copyText(this.selectedPaths().join('\n')).then(ok => toast(ok ? 'Path copied' : 'Could not copy', ok ? '' : 'error')) },
-      !this.remote ? { label: `Show in ${S.platform?.file_manager || 'Finder'}`, action: () => api('reveal', { path: n === 1 ? sel[0].path : this.path }) } : null,
+      { label: t('New folder…'), action: () => this.mkdir() },
+      { label: t('Refresh'), action: () => this.refresh() },
+      this.remote && n === 1 && webUrl(sel[0].path) ? { label: t('Open in browser'), action: () => api('open_url', { url: webUrl(sel[0].path) + (sel[0].dir ? '/' : '') }).catch(e => toast(e.message, 'error')) } : null,
+      this.remote && n >= 1 && webUrl(sel[0].path) ? { label: n > 1 ? t('Copy URLs') : t('Copy URL'), action: () => copyText(sel.map(x => webUrl(x.path) + (x.dir ? '/' : '')).join('\n')).then(ok => toast(ok ? t('Web address copied') : t('Could not copy'), ok ? '' : 'error')) } : null,
+      this.remote && n === 1 && !webUrl(sel[0].path) && isPublicDir(sel[0].path) && S.status.site_id !== 'quick' ? { label: t('Open in browser…'), hint: t('set web address'), action: () => { toast(t('Set the web address for this folder in Site Manager → Advanced')); openSiteManager(S.status.site_id); } } : null,
+      { label: t('Copy path'), disabled: !n, action: () => copyText(this.selectedPaths().join('\n')).then(ok => toast(ok ? t('Path copied') : t('Could not copy'), ok ? '' : 'error')) },
+      !this.remote ? { label: t('Show in {app}', { app: S.platform?.file_manager || 'Finder' }), action: () => api('reveal', { path: n === 1 ? sel[0].path : this.path }) } : null,
     ];
     const plugs = S.plugins.filter(p => p.side === 'any' || p.side === this.side);
     if (plugs.length) {
-      items.push({ sep: true }, { header: 'Plugins' });
+      items.push({ sep: true }, { header: t('Plugins') });
       for (const p of plugs) items.push({ label: p.label, disabled: p.needs_selection && !n, action: () => runPlugin(p, this) });
     }
     showMenu(e.clientX, e.clientY, items);
@@ -691,28 +694,30 @@ class Pane {
   }
 
   newMenu(x, y) {
-    if (!this.canCompare()) return toast('Connect and open the matching folder on the other side first');
+    if (!this.canCompare()) return toast(t('Connect and open the matching folder on the other side first'));
     const om = this.otherMap();
     const vis = this.visible();
     const by = kinds => vis.filter(e => kinds.includes(this.diffOf(e, om))).map(e => e.name);
-    const there = this.remote ? 'local' : 'the server';
+    const btn = this.remote ? t('← Download') : t('Upload →');
     const pick = (names, what) => () => {
       this.sel = new Set(names);
       this.render();
-      toast(names.length ? `Selected ${names.length} item(s) ${what} – click ${this.remote ? '← Download' : 'Upload →'}` : 'Nothing to select – everything is already there', names.length ? 'ok' : '');
+      toast(names.length ? what(names.length) : t('Nothing to select – everything is already there'), names.length ? 'ok' : '');
     };
     const missing = by(['new']), changed = by(['changed', 'newer']);
     showMenu(x, y, [
-      { header: `Compared with ${this.other.path}` },
-      { label: `Not on ${there}`, hint: String(missing.length), action: pick(missing, `not on ${there}`) },
-      { label: `Not on ${there} + changed here`, hint: String(missing.length + changed.length), action: pick([...missing, ...changed], `new or changed`) },
-      { label: 'Changed here only', hint: String(changed.length), action: pick(changed, 'changed here') },
+      { header: t('Compared with {path}', { path: this.other.path }) },
+      { label: this.remote ? t('Not on local') : t('Not on the server'), hint: String(missing.length),
+        action: pick(missing, n => this.remote ? t('Selected {n} item(s) not on local – click {button}', { n, button: btn }) : t('Selected {n} item(s) not on the server – click {button}', { n, button: btn })) },
+      { label: this.remote ? t('Not on local + changed here') : t('Not on the server + changed here'), hint: String(missing.length + changed.length),
+        action: pick([...missing, ...changed], n => t('Selected {n} new or changed item(s) – click {button}', { n, button: btn })) },
+      { label: t('Changed here only'), hint: String(changed.length), action: pick(changed, n => t('Selected {n} item(s) changed here – click {button}', { n, button: btn })) },
       { sep: true },
-      { label: `${S.highlight ? '✓ ' : ''}Highlight differences`, action: () => {
+      { label: `${S.highlight ? '✓ ' : ''}${t('Highlight differences')}`, action: () => {
         S.highlight = !S.highlight; store.set('highlight', S.highlight); PL.render(); PR.render();
       } },
-      { header: 'Folders that exist on both sides are compared by name only.' },
-      { header: 'Tip: “Skip if exists” also skips files inside them.' },
+      { header: t('Folders that exist on both sides are compared by name only.') },
+      { header: t('Tip: “Skip if exists” also skips files inside them.') },
     ]);
   }
 
@@ -720,19 +725,19 @@ class Pane {
     const vis = this.visible().filter(e => e.mode != null);
     const groups = new Map();
     for (const e of vis) { if (!groups.has(e.mode)) groups.set(e.mode, []); groups.get(e.mode).push(e); }
-    if (!groups.size) return toast('Nothing to select');
-    const items = [{ header: 'Click to add / remove from selection' }];
+    if (!groups.size) return toast(t('Nothing to select'));
+    const items = [{ header: t('Click to add / remove from selection') }];
     for (const [m, list] of [...groups].sort((a, b) => b[1].length - a[1].length || a[0] - b[0])) {
       const names = list.map(e => e.name);
       const allSel = names.every(n => this.sel.has(n));
       const d = list.filter(e => e.dir).length, f = list.length - d;
       items.push({
         label: `${allSel ? '✓ ' : ''}${modeOct(m)}  ${modeText(m)}`,
-        hint: [d && `${d} folder${d > 1 ? 's' : ''}`, f && `${f} file${f > 1 ? 's' : ''}`].filter(Boolean).join(', '),
+        hint: [d && (d > 1 ? t('{n} folders', { n: d }) : t('1 folder')), f && nFiles(f)].filter(Boolean).join(', '),
         action: () => { names.forEach(n => allSel ? this.sel.delete(n) : this.sel.add(n)); this.render(); },
       });
     }
-    items.push({ sep: true }, { label: 'Clear selection', action: () => { this.sel = new Set(); this.render(); } });
+    items.push({ sep: true }, { label: t('Clear selection'), action: () => { this.sel = new Set(); this.render(); } });
     showMenu(x, y, items);
   }
 
@@ -742,9 +747,9 @@ class Pane {
     const groups = {};
     for (const e of vis) (groups[typeKey(e)] ||= []).push(e.name);
     const keys = Object.keys(groups).sort((a, b) => groups[b].length - groups[a].length || a.localeCompare(b));
-    if (!keys.length) return toast('Nothing to select');
+    if (!keys.length) return toast(t('Nothing to select'));
     const showAll = () => { this.typeFilter.clear(); };
-    const items = [{ header: 'Select and show only this type' }];
+    const items = [{ header: t('Select and show only this type') }];
     for (const k of keys) {
       const names = groups[k];
       const on = this.typeFilter.has(k);
@@ -761,26 +766,26 @@ class Pane {
       });
     }
     items.push({ sep: true },
-      { label: 'Select all', action: () => { showAll(); this.sel = new Set(vis.map(x => x.name)); this.render(); } },
-      { label: 'Invert selection', action: () => { showAll(); this.sel = new Set(vis.filter(x => !this.sel.has(x.name)).map(x => x.name)); this.render(); } },
-      { label: 'Clear selection', action: () => { showAll(); this.sel = new Set(); this.render(); } });
-    if (this.typeFilter.size) items.push({ label: 'Show all types again', action: () => { showAll(); this.render(); } });
+      { label: t('Select all'), action: () => { showAll(); this.sel = new Set(vis.map(x => x.name)); this.render(); } },
+      { label: t('Invert selection'), action: () => { showAll(); this.sel = new Set(vis.filter(x => !this.sel.has(x.name)).map(x => x.name)); this.render(); } },
+      { label: t('Clear selection'), action: () => { showAll(); this.sel = new Set(); this.render(); } });
+    if (this.typeFilter.size) items.push({ label: t('Show all types again'), action: () => { showAll(); this.render(); } });
     showMenu(x, y, items);
   }
 
   needSel(min = 1) {
-    if (this.sel.size < min) { toast('Select one or more items first'); return false; }
+    if (this.sel.size < min) { toast(t('Select one or more items first')); return false; }
     return true;
   }
 
   transfer() {
     if (!this.needSel()) return;
-    if (!S.status.connected) return toast('Connect to a server first', 'error');
+    if (!S.status.connected) return toast(t('Connect to a server first'), 'error');
     startTransfer(this.remote ? 'download' : 'upload', this.selectedPaths(), this.other.path);
   }
 
   async mkdir() {
-    const name = await askText('New folder', `Name of the new folder in ${this.path}`);
+    const name = await askText(t('New folder'), t('Name of the new folder in {path}', { path: this.path }));
     if (!name) return;
     try { await api('mkdir', { side: this.side, dir: this.path, name }); await this.refresh(); }
     catch (e) { toast(e.message, 'error'); }
@@ -788,8 +793,8 @@ class Pane {
 
   async rename() {
     const s = this.selected();
-    if (s.length !== 1) return toast('Select exactly one item to rename');
-    const name = await askText('Rename', 'New name', s[0].name);
+    if (s.length !== 1) return toast(t('Select exactly one item to rename'));
+    const name = await askText(t('Rename'), t('New name'), s[0].name);
     if (!name || name === s[0].name) return;
     try { await api('rename', { side: this.side, path: s[0].path, name }); this.sel = new Set([name]); await this.refresh(); }
     catch (e) { toast(e.message, 'error'); }
@@ -797,14 +802,14 @@ class Pane {
 
   async moveAsk() {
     if (!this.needSel()) return;
-    const dest = await askText('Move', `Move ${this.sel.size} item(s) to folder:`, this.path);
+    const dest = await askText(t('Move'), t('Move {n} item(s) to folder:', { n: this.sel.size }), this.path);
     if (!dest || dest === this.path) return;
     this.move(this.selectedPaths(), dest);
   }
   async move(paths, dest) {
     try {
       await api('move', { side: this.side, paths, dest });
-      toast(`Moved ${paths.length} item(s)`, 'ok');
+      toast(t('Moved {n} item(s)', { n: paths.length }), 'ok');
       await this.refresh();
     } catch (e) { toast(e.message, 'error'); }
   }
@@ -812,17 +817,17 @@ class Pane {
   async del() {
     if (!this.needSel()) return;
     const s = this.selected();
-    const list = s.slice(0, 8).map(e => '• ' + esc(e.name) + (e.dir ? '/' : '')).join('<br>') + (s.length > 8 ? `<br>… and ${s.length - 8} more` : '');
+    const list = s.slice(0, 8).map(e => '• ' + esc(e.name) + (e.dir ? '/' : '')).join('<br>') + (s.length > 8 ? '<br>' + esc(t('… and {n} more', { n: s.length - 8 })) : '');
     const ok = this.remote
-      ? await confirmBox('Delete on server', `Permanently delete ${s.length} item(s) from the server? Folders are deleted with everything in them. This cannot be undone.<br><br>${list}`, 'Delete', true)
-      : await confirmBox('Move to Trash', `Move ${s.length} item(s) to the Trash?<br><br>${list}`, 'Move to Trash', true);
+      ? await confirmBox(t('Delete on server'), esc(t('Permanently delete {n} item(s) from the server? Folders are deleted with everything in them. This cannot be undone.', { n: s.length })) + `<br><br>${list}`, t('Delete'), true)
+      : await confirmBox(t('Move to Trash'), esc(t('Move {n} item(s) to the Trash?', { n: s.length })) + `<br><br>${list}`, t('Move to Trash'), true);
     if (!ok) return;
-    try { await api('delete', { side: this.side, paths: this.selectedPaths() }); toast(`Deleted ${s.length} item(s)`, 'ok'); await this.refresh(); }
+    try { await api('delete', { side: this.side, paths: this.selectedPaths() }); toast(t('Deleted {n} item(s)', { n: s.length }), 'ok'); await this.refresh(); }
     catch (e) { toast(e.message, 'error'); this.refresh(); }
   }
 
   chmod() {
-    if (this.remote && !S.status.connected) return toast('Connect to a server first', 'error');
+    if (this.remote && !S.status.connected) return toast(t('Connect to a server first'), 'error');
     if (!this.needSel()) return;
     openChmod(this);
   }
@@ -836,10 +841,10 @@ function setActive(p) {
 
 /* ---------------------------------------------------------------- permissions (chmod) */
 const PERM_GROUPS = [
-  ['Owner permissions', [['Read', 0o400], ['Write', 0o200], ['Execute', 0o100]]],
-  ['Group permissions', [['Read', 0o40], ['Write', 0o20], ['Execute', 0o10]]],
-  ['Public permissions', [['Read', 0o4], ['Write', 0o2], ['Execute', 0o1]]],
-  ['Special permissions', [['Set-user-ID', 0o4000], ['Set-group-ID', 0o2000], ['Sticky bit', 0o1000]]],
+  [t('Owner permissions'), [[t('Read'), 0o400], [t('Write'), 0o200], [t('Execute'), 0o100]]],
+  [t('Group permissions'), [[t('Read'), 0o40], [t('Write'), 0o20], [t('Execute'), 0o10]]],
+  [t('Public permissions'), [[t('Read'), 0o4], [t('Write'), 0o2], [t('Execute'), 0o1]]],
+  [t('Special permissions'), [['Set-user-ID', 0o4000], ['Set-group-ID', 0o2000], [t('Sticky bit'), 0o1000]]],
 ];
 const PERM_BITS = PERM_GROUPS.flatMap(g => g[1].map(b => b[1]));
 const PERM_DIGITS = [[0o4000, 0o2000, 0o1000], [0o400, 0o200, 0o100], [0o40, 0o20, 0o10], [0o4, 0o2, 0o1]];
@@ -884,27 +889,29 @@ async function openChmod(pane) {
   let state = { ...initial };
   const modes = new Set(known.map(e => e.mode));
   const hasDir = sel.some(e => e.dir);
-  const what = sel.length === 1 ? `the ${sel[0].dir ? 'directory' : 'file'} "${esc(sel[0].name)}"` : `the ${sel.length} selected items`;
+  const intro = sel.length === 1
+    ? (sel[0].dir ? t('Please select the new attributes for the directory “{name}”.', { name: sel[0].name }) : t('Please select the new attributes for the file “{name}”.', { name: sel[0].name }))
+    : t('Please select the new attributes for the {n} selected items.', { n: sel.length });
   const body = `
-    <p style="margin-top:0">Please select the new attributes for ${what}.</p>
-    ${PERM_GROUPS.map(([title, bits]) => `<div class="perm-title">${title}</div>
-      <div class="perm-box">${bits.map(([l, b]) => `<label class="check"><input type="checkbox" data-bit="${b}"> ${l}</label>`).join('')}</div>`).join('')}
+    <p style="margin-top:0">${esc(intro)}</p>
+    ${PERM_GROUPS.map(([title, bits]) => `<div class="perm-title">${esc(title)}</div>
+      <div class="perm-box">${bits.map(([l, b]) => `<label class="check"><input type="checkbox" data-bit="${b}"> ${esc(l)}</label>`).join('')}</div>`).join('')}
     <div class="perm-chmod"><label for="chmodText">Chmod:</label><input id="chmodText" class="mono" spellcheck="false" autocomplete="off"></div>
-    <p class="muted sm-note">Enter the new mode in octal (e.g. 755 or 0644) or as a textual change (e.g. u+x,go-w).
-      ${mixedBits.size ? 'The selected items differ: a mixed box (–) or an x in the number means “leave as it is on each item”.' : ''}</p>
-    ${hasDir ? `<label class="check"><input type="checkbox" id="chmodRec"> Recurse into subdirectories</label>
+    <p class="muted sm-note">${esc(t('Enter the new mode in octal (e.g. 755 or 0644) or as a textual change (e.g. u+x,go-w).'))}
+      ${mixedBits.size ? esc(t('The selected items differ: a mixed box (–) or an x in the number means “leave as it is on each item”.')) : ''}</p>
+    ${hasDir ? `<label class="check"><input type="checkbox" id="chmodRec"> ${esc(t('Recurse into subdirectories'))}</label>
       <div class="perm-indent">
-        <label class="check"><input type="radio" name="applyTo" value="all" checked disabled> Apply to all files and directories</label>
-        <label class="check"><input type="radio" name="applyTo" value="files" disabled> Apply to files only</label>
-        <label class="check"><input type="radio" name="applyTo" value="dirs" disabled> Apply to directories only</label>
+        <label class="check"><input type="radio" name="applyTo" value="all" checked disabled> ${esc(t('Apply to all files and directories'))}</label>
+        <label class="check"><input type="radio" name="applyTo" value="files" disabled> ${esc(t('Apply to files only'))}</label>
+        <label class="check"><input type="radio" name="applyTo" value="dirs" disabled> ${esc(t('Apply to directories only'))}</label>
       </div>` : ''}
     <div class="perm-sep"></div>
-    <label class="check"><input type="checkbox" id="chmodOnly"> Only change items that currently have permissions</label>
-    <div class="perm-indent"><input id="chmodOnlyVal" class="mono" placeholder="e.g. 0777" style="width:130px" value="${modes.size === 1 ? modeOct([...modes][0]) : ''}"></div>`;
+    <label class="check"><input type="checkbox" id="chmodOnly"> ${esc(t('Only change items that currently have permissions'))}</label>
+    <div class="perm-indent"><input id="chmodOnlyVal" class="mono" placeholder="${esc(t('e.g. 0777'))}" style="width:130px" value="${modes.size === 1 ? modeOct([...modes][0]) : ''}"></div>`;
 
   const { value, el } = await modal({
-    title: 'Change file attributes', body, size: 'perm-size',
-    buttons: [{ label: 'Cancel', value: null }, { label: 'OK', value: 'ok', primary: true }],
+    title: t('Change file attributes'), body, size: 'perm-size',
+    buttons: [{ label: t('Cancel'), value: null }, { label: t('OK'), value: 'ok', primary: true }],
     onOpen(m) {
       const text = $('#chmodText', m);
       const boxes = $$('[data-bit]', m);
@@ -939,24 +946,24 @@ async function openChmod(pane) {
   if (!value) return;
   const set = PERM_BITS.filter(b => state[b] === 1).reduce((a, b) => a | b, 0);
   const clear = PERM_BITS.filter(b => state[b] === 0).reduce((a, b) => a | b, 0);
-  if ($('#chmodText', el).classList.contains('bad')) return toast('The chmod value is not valid', 'error');
+  if ($('#chmodText', el).classList.contains('bad')) return toast(t('The chmod value is not valid'), 'error');
   const recursive = !!$('#chmodRec', el)?.checked;
   const onlyIf = $('#chmodOnly', el).checked ? $('#chmodOnlyVal', el).value.trim() : '';
-  if ($('#chmodOnly', el).checked && !onlyIf) return toast('Fill in the permissions to match, e.g. 0777', 'error');
+  if ($('#chmodOnly', el).checked && !onlyIf) return toast(t('Fill in the permissions to match, e.g. 0777'), 'error');
   try {
     const r = await api('chmod', {
       side: pane.side, paths: pane.selectedPaths(), set, clear, recursive,
       apply_to: recursive ? ($('[name=applyTo]:checked', el)?.value || 'all') : 'all', only_if: onlyIf,
     });
-    watchJob(r.job_id, job => { if (job.status === 'done') toast(job.result?.message || 'Permissions changed', 'ok'); });
+    watchJob(r.job_id, job => { if (job.status === 'done') toast(job.result?.message || t('Permissions changed'), 'ok'); });
   } catch (e) { toast(e.message, 'error'); }
 }
 
 /* ---------------------------------------------------------------- extract zip */
 async function openExtract(pane) {
-  if (!S.status.connected) return toast('Connect to a server first', 'error');
+  if (!S.status.connected) return toast(t('Connect to a server first'), 'error');
   const sel = pane.selected();
-  if (sel.length !== 1 || sel[0].dir || sel[0].ext !== 'zip') return toast('Select one .zip file');
+  if (sel.length !== 1 || sel[0].dir || sel[0].ext !== 'zip') return toast(t('Select one .zip file'));
   const z = sel[0];
   const fromLocal = !pane.remote;
   const site = S.sites.find(x => x.id === S.status.site_id) || {};
@@ -966,34 +973,34 @@ async function openExtract(pane) {
   const base = z.name.replace(/\.zip$/i, '');
   const ftp = S.status.protocol === 'FTP';
   const body = `
-    <p style="margin-top:0">${fromLocal ? `Upload <b>${esc(z.name)}</b> (${fmtSize(z.size)}) and extract it on the server.` : `Extract <b>${esc(z.name)}</b> on the server.`}</p>
-    <label class="field">Extract to (server folder)<span class="with-btn"><input id="xDest" value="${esc(dest)}"><button type="button" data-current="remote">Use current</button></span></label>
-    <label class="check"><input type="radio" name="xInto" value="here" checked> Directly into this folder</label>
-    <label class="check"><input type="radio" name="xInto" value="folder"> Into a new folder “${esc(base)}”</label>
-    <label class="check"><input type="checkbox" id="xStrip"> Leave out the zip's top folder (extract only what is inside it)</label>
-    <div id="xPreview" class="info-box"><span class="muted">Reading the zip…</span></div>
+    <p style="margin-top:0">${fromLocal ? t('Upload <b>{name}</b> ({size}) and extract it on the server.', { name: esc(z.name), size: fmtSize(z.size) }) : t('Extract <b>{name}</b> on the server.', { name: esc(z.name) })}</p>
+    <label class="field">${esc(t('Extract to (server folder)'))}<span class="with-btn"><input id="xDest" value="${esc(dest)}"><button type="button" data-current="remote">${esc(t('Use current'))}</button></span></label>
+    <label class="check"><input type="radio" name="xInto" value="here" checked> ${esc(t('Directly into this folder'))}</label>
+    <label class="check"><input type="radio" name="xInto" value="folder"> ${esc(t('Into a new folder “{name}”', { name: base }))}</label>
+    <label class="check"><input type="checkbox" id="xStrip"> ${esc(t("Leave out the zip's top folder (extract only what is inside it)"))}</label>
+    <div id="xPreview" class="info-box"><span class="muted">${esc(t('Reading the zip…'))}</span></div>
     <div class="perm-sep"></div>
-    <div class="row"><label class="field">Files that already exist on the server
-      <select id="xPolicy"><option value="overwrite">Overwrite them</option><option value="skip_exists">Keep them (only add new files)</option></select></label></div>
-    <label class="check"><input type="checkbox" id="xPerms" checked> Set permissions on the extracted files</label>
+    <div class="row"><label class="field">${esc(t('Files that already exist on the server'))}
+      <select id="xPolicy"><option value="overwrite">${esc(t('Overwrite them'))}</option><option value="skip_exists">${esc(t('Keep them (only add new files)'))}</option></select></label></div>
+    <label class="check"><input type="checkbox" id="xPerms" checked> ${esc(t('Set permissions on the extracted files'))}</label>
     <div class="sm-upperm">
-      <label>Folders <input id="xDirMode" class="mono" value="${esc(dDir)}"></label>
-      <label>Files <input id="xFileMode" class="mono" value="${esc(dFile)}"></label>
+      <label>${esc(t('Folders'))} <input id="xDirMode" class="mono" value="${esc(dDir)}"></label>
+      <label>${esc(t('Files'))} <input id="xFileMode" class="mono" value="${esc(dFile)}"></label>
     </div>
-    ${fromLocal ? '' : `<label class="check"><input type="checkbox" id="xDel" ${isPublicDir(pane.path) ? 'checked' : ''}> Delete the zip from the server afterwards${isPublicDir(pane.path) ? ' <span class="muted">(recommended: this is a public web folder)</span>' : ''}</label>`}
+    ${fromLocal ? '' : `<label class="check"><input type="checkbox" id="xDel" ${isPublicDir(pane.path) ? 'checked' : ''}> ${esc(t('Delete the zip from the server afterwards'))}${isPublicDir(pane.path) ? ` <span class="muted">${esc(t('(recommended: this is a public web folder)'))}</span>` : ''}</label>`}
     <div class="perm-sep"></div>
-    <div class="row"><label class="field">Unpack
+    <div class="row"><label class="field">${esc(t('Unpack'))}
       <select id="xMethod">
-        <option value="auto">Automatic</option>
-        <option value="server" ${ftp ? 'disabled' : ''}>On the server (fast, needs SSH + unzip)</option>
-        <option value="local">On this computer, then upload the files</option>
+        <option value="auto">${esc(t('Automatic'))}</option>
+        <option value="server" ${ftp ? 'disabled' : ''}>${esc(t('On the server (fast, needs SSH + unzip)'))}</option>
+        <option value="local">${esc(t('On this computer, then upload the files'))}</option>
       </select></label></div>
-    <p class="muted sm-note">${ftp
-      ? 'This is an FTP connection: the zip is unpacked on this computer and the files are uploaded with the permissions above.'
-      : 'Automatic unpacks on the server when it allows SSH commands, otherwise on this computer.'}</p>`;
+    <p class="muted sm-note">${esc(ftp
+      ? t('This is an FTP connection: the zip is unpacked on this computer and the files are uploaded with the permissions above.')
+      : t('Automatic unpacks on the server when it allows SSH commands, otherwise on this computer.'))}</p>`;
   const { value, el } = await modal({
-    title: fromLocal ? 'Upload & extract' : 'Extract zip', body, size: 'mid',
-    buttons: [{ label: 'Cancel', value: null }, { label: fromLocal ? 'Upload & extract' : 'Extract', value: 'ok', primary: true }],
+    title: fromLocal ? t('Upload & extract') : t('Extract zip'), body, size: 'mid',
+    buttons: [{ label: t('Cancel'), value: null }, { label: fromLocal ? t('Upload & extract') : t('Extract'), value: 'ok', primary: true }],
     onOpen(m) {
       ['#xDirMode', '#xFileMode'].forEach(id => $(id, m).addEventListener('input', () => { $('#xPerms', m).checked = true; }));
       // Preview: show exactly where the files will end up, and warn about a likely mistake
@@ -1014,16 +1021,16 @@ async function openExtract(pane) {
           try { destNames = new Set((await api('list', { side: 'remote', path: destVal })).entries.map(e => e.name)); } catch { destNames = null; }
         }
         if (strip && top && !into && destNames?.has(top)) {
-          warn = `<div class="err" style="margin-top:8px">⚠ This folder already contains “${esc(top)}/”. With “Leave out the zip's top folder” on, the files do <b>not</b> go into “${esc(top)}/” and the existing files there are <b>not</b> replaced. Untick it to update “${esc(top)}/”.</div>`;
+          warn = `<div class="err" style="margin-top:8px">⚠ ${t("This folder already contains “{top}/”. With “Leave out the zip's top folder” on, the files do <b>not</b> go into “{top}/” and the existing files there are <b>not</b> replaced. Untick it to update “{top}/”.", { top: esc(top) })}</div>`;
         }
-        box.innerHTML = `<b>Result</b> (${info.files} files${top ? `, top folder “${esc(top)}/”` : ''}):${rows}${info.files > 3 ? '<div class="muted">…</div>' : ''}${warn}`;
+        box.innerHTML = `<b>${esc(t('Result'))}</b> (${esc(top ? t('{n} files, top folder “{top}/”', { n: info.files, top }) : nFiles(info.files))}):${rows}${info.files > 3 ? '<div class="muted">…</div>' : ''}${warn}`;
       };
       api('zip_info', { side: pane.side, zip: z.path }).then(r => {
         info = r.info;
-        if (!info) { box.innerHTML = '<span class="muted">The zip is too large to preview; it will be extracted as shown by the options above.</span>'; return; }
+        if (!info) { box.innerHTML = `<span class="muted">${esc(t('The zip is too large to preview; it will be extracted as shown by the options above.'))}</span>`; return; }
         if (!info.top_folder) $('#xStrip', m).closest('label').hidden = true;
         render();
-      }).catch(e => { box.innerHTML = `<span class="muted">Could not read the zip: ${esc(e.message)}</span>`; });
+      }).catch(e => { box.innerHTML = `<span class="muted">${esc(t('Could not read the zip: {error}', { error: e.message }))}</span>`; });
       ['#xDest', '#xStrip'].forEach(id => $(id, m).addEventListener('input', render));
       $('#xStrip', m).addEventListener('change', render);
       $$('input[name=xInto]', m).forEach(r => r.addEventListener('change', render));
@@ -1042,7 +1049,7 @@ async function openExtract(pane) {
     });
     watchJob(r.job_id, job => {
       if (job.status !== 'done') return;
-      toast(job.result?.message || 'Extracted', 'ok');
+      toast(job.result?.message || t('Extracted'), 'ok');
       if (PR.path === destVal && into) PR.refresh();
     });
   } catch (e) { toast(e.message, 'error'); }
@@ -1070,21 +1077,21 @@ const isPublicDir = remotePath => !!webUrl(remotePath) || remotePath.split('/').
 
 async function riskDialog(rc, dest) {
   const list = rc.risky.slice(0, 10).map(x => `<div class="mono">• ${esc(x.name)} <span class="muted">(${fmtSize(x.size)})</span></div>`).join('')
-    + (rc.count > 10 ? `<div class="muted">… and ${rc.count - 10} more</div>` : '');
-  const where = rc.url ? `<br>Anyone could download them from <span class="mono">${esc(rc.url)}</span>` : '';
+    + (rc.count > 10 ? `<div class="muted">${esc(t('… and {n} more', { n: rc.count - 10 }))}</div>` : '');
+  const where = rc.url ? '<br>' + t('Anyone could download them from {url}', { url: `<span class="mono">${esc(rc.url)}</span>` }) : '';
   const { value } = await modal({
-    title: 'Public folder',
-    body: `<p style="margin-top:0"><b>${esc(dest)}</b> is a public web folder. You are uploading ${rc.count} file(s) that usually shouldn't be public (archives, database dumps, backups, keys):${where}</p>${list}`,
-    buttons: [{ label: 'Cancel', value: null }, { label: 'Upload anyway', value: 'all', danger: true },
-              { label: 'Skip these files', value: 'skip', primary: true }],
+    title: t('Public folder'),
+    body: `<p style="margin-top:0">${t("<b>{dest}</b> is a public web folder. You are uploading {n} file(s) that usually shouldn't be public (archives, database dumps, backups, keys):", { dest: esc(dest), n: rc.count })}${where}</p>${list}`,
+    buttons: [{ label: t('Cancel'), value: null }, { label: t('Upload anyway'), value: 'all', danger: true },
+              { label: t('Skip these files'), value: 'skip', primary: true }],
   });
   return value;
 }
 
 /* ---------------------------------------------------------------- transfers & jobs */
 async function startTransfer(direction, paths, dest, onDone) {
-  if (!S.status.connected) return toast('Connect to a server first', 'error');
-  if (!dest) return toast('No destination folder', 'error');
+  if (!S.status.connected) return toast(t('Connect to a server first'), 'error');
+  if (!dest) return toast(t('No destination folder'), 'error');
   let skip = [];
   if (direction === 'upload') {
     try {
@@ -1139,22 +1146,22 @@ function renderJobs(jobs) {
   badge.hidden = !active;
   badge.textContent = active;
   const q = $('#queue');
-  if (!jobs.length) { q.innerHTML = '<div class="empty">No transfers yet. Select files and click Upload/Download, or drag them to the other side.</div>'; return; }
+  if (!jobs.length) { q.innerHTML = `<div class="empty">${esc(t('No transfers yet. Select files and click Upload/Download, or drag them to the other side.'))}</div>`; return; }
   q.innerHTML = jobs.map(j => {
     const pct = j.total ? Math.min(100, Math.round(j.done / j.total * 100)) : (j.status === 'done' ? 100 : 0);
     const items = j.unit === 'items';
     const fmt = n => items ? `${n}` : fmtSize(n);
-    const sizeTxt = j.total ? `${fmt(j.done)} / ${fmt(j.total)}${items ? ' items' : ''}` : (j.done ? fmt(j.done) : '');
+    const sizeTxt = j.total ? (items ? t('{done} / {total} items', { done: j.done, total: j.total }) : `${fmt(j.done)} / ${fmt(j.total)}`) : (j.done ? fmt(j.done) : '');
     const speed = j.status === 'running' && j.speed && !items ? ` · ${fmtSize(j.speed)}/s` : '';
-    const label = { queued: 'Waiting', running: j.current || 'Working…', done: 'Done', error: 'Failed', cancelled: 'Cancelled' }[j.status];
+    const label = { queued: t('Waiting'), running: j.current || t('Working…'), done: t('Done'), error: t('Failed'), cancelled: t('Cancelled') }[j.status];
     return `<div class="job ${j.status}">
       <span class="dot"></span>
       <div style="min-width:0"><div class="title" title="${esc(j.title)}">${esc(j.title)}</div>
         ${j.error ? `<div class="err">${esc(j.error)}</div>` : `<div class="sub">${esc(label)}</div>`}</div>
       <div class="bar"><i style="width:${pct}%"></i></div>
       <div class="sub">${sizeTxt}${speed}</div>
-      <div>${['queued', 'running'].includes(j.status) ? `<button class="small" data-cancel="${j.id}">Cancel</button>`
-        : j.failed ? `<button class="small" data-retry="${j.id}">Retry ${j.failed}</button>` : ''}</div>
+      <div>${['queued', 'running'].includes(j.status) ? `<button class="small" data-cancel="${j.id}">${esc(t('Cancel'))}</button>`
+        : j.failed ? `<button class="small" data-retry="${j.id}">${esc(t('Retry {n}', { n: j.failed }))}</button>` : ''}</div>
     </div>`;
   }).join('');
 }
@@ -1163,7 +1170,7 @@ $('#queue').addEventListener('click', e => {
   if (id) api('job_cancel', { id }).then(kickPoll);
   const retry = e.target.dataset.retry;
   if (retry) api('job_retry', { id: retry }).then(r => watchJob(r.job_id, job => {
-    if (job.status === 'done') toast(job.result?.message || 'Retry finished', 'ok');
+    if (job.status === 'done') toast(job.result?.message || t('Retry finished'), 'ok');
   })).catch(err => toast(err.message, 'error'));
 });
 $('#btnClearJobs').onclick = () => api('jobs_clear').then(kickPoll);
@@ -1220,9 +1227,10 @@ function applyStatus(st) {
   S.status = st;
   const el = $('#connStatus');
   el.className = 'status' + (st.connected ? ' on' : '');
-  el.textContent = st.connected ? st.label : 'Not connected';
-  $('#btnConnect').textContent = st.connected ? 'Connect ＋' : 'Connect';
-  $('#btnConnect').title = st.connected ? 'Connect to the selected site in a new tab' : 'Connect to the selected site';
+  el.textContent = st.connected ? st.label : t('Not connected');
+  el.title = el.textContent;  // the label can be shortened in the top bar
+  $('#btnConnect').textContent = st.connected ? t('Connect') + ' ＋' : t('Connect');
+  $('#btnConnect').title = st.connected ? t('Connect to the selected site in a new tab') : t('Connect to the selected site');
   $('#btnDisconnect').hidden = !st.connected;
   document.body.dataset.siteColor = st.connected ? (st.color || '') : '';
   renderTabs(st);
@@ -1239,10 +1247,10 @@ function renderTabs(st) {
   bar.dataset.key = key;
   const tabs = st.tabs || [];
   bar.hidden = !tabs.length;
-  bar.innerHTML = tabs.map(t => `<button class="ctab ${t.id === st.tab ? 'active' : ''}" data-tab="${t.id}" title="${esc(t.label)}">
-      ${t.color ? `<i class="cdot" style="background:var(--c-${t.color})"></i>` : ''}<span>${esc(t.name)}</span>
-      <span class="cx" data-close="${t.id}" title="Disconnect and close this tab">×</span></button>`).join('')
-    + `<button class="ctab cnew" data-new="1" title="Open another site in a new tab">＋</button>`;
+  bar.innerHTML = tabs.map(tb => `<button class="ctab ${tb.id === st.tab ? 'active' : ''}" data-tab="${tb.id}" title="${esc(tb.label)}">
+      ${tb.color ? `<i class="cdot" style="background:var(--c-${tb.color})"></i>` : ''}<span>${esc(tb.name)}</span>
+      <span class="cx" data-close="${tb.id}" title="${esc(t('Disconnect and close this tab'))}">×</span></button>`).join('')
+    + `<button class="ctab cnew" data-new="1" title="${esc(t('Open another site in a new tab'))}">＋</button>`;
 }
 function saveTabState() {
   if (S.status.connected && S.status.tab) S.tabState[S.status.tab] = { remote: PR.path, local: PL.path };
@@ -1286,7 +1294,7 @@ function renderSites(selectId) {
   const opt = s => `<option value="${esc(s.id)}">${esc(s.name)}</option>`;
   const groups = {};
   for (const s of S.sites) (groups[s.folder || ''] ||= []).push(s);
-  sel.innerHTML = !S.sites.length ? '<option value="">(no sites yet)</option>'
+  sel.innerHTML = !S.sites.length ? `<option value="">${esc(t('(no sites yet)'))}</option>`
     : (groups[''] || []).map(opt).join('') + Object.keys(groups).filter(Boolean).sort((a, b) => a.localeCompare(b))
       .map(f => `<optgroup label="${esc(f)}">${groups[f].map(opt).join('')}</optgroup>`).join('');
   if (S.sites.some(s => s.id === cur)) sel.value = cur;
@@ -1298,7 +1306,7 @@ async function connect(extra = {}) {
   if (!site) return openSiteManager();
   const el = $('#connStatus');
   el.className = 'status busy';
-  el.textContent = `Connecting to ${site.host}…`;
+  el.textContent = t('Connecting to {host}…', { host: site.host });
   $('#btnConnect').disabled = true;
   try {
     saveTabState();
@@ -1311,7 +1319,7 @@ async function connect(extra = {}) {
     if (S.syncBrowse) setSync(false);
     await PR.load(r.remote_path);
     if (site.local_dir) PL.load(site.local_dir);
-    toast(`Connected to ${site.host}`, 'ok');
+    toast(t('Connected to {host}', { host: site.host }), 'ok');
   } catch (e) {
     applyStatus(S.status); kickPoll();
     if (e.message.startsWith('NEED_PASSWORD')) {
@@ -1320,15 +1328,15 @@ async function connect(extra = {}) {
       const tip = e.message.includes(' Tip: ') ? e.message.split(' Tip: ')[1].split(' Server: ')[0] : '';
       const canSave = site.auth !== 'ask';
       const { value, el: m } = await modal({
-        title: `Password for ${site.username}@${site.host}`,
-        body: `${failed ? `<div class="info-box err">The server rejected the login. Check the username and password and type it again.${tip ? `<br>${esc(tip)}` : ''}${said ? `<br><span class="muted">Server reply: ${esc(said)}</span>` : ''}</div>` : ''}
-               <label class="field">Password<input id="pw" type="password" autocomplete="off"></label>
-               ${canSave ? `<label class="check"><input type="checkbox" id="pwSave" checked> Remember in ${esc(S.platform?.keychain || 'the system keychain')}</label>` : ''}`,
-        buttons: [{ label: 'Cancel', value: null }, { label: 'Connect', value: 'ok', primary: true }],
+        title: t('Password for {user}', { user: `${site.username}@${site.host}` }),
+        body: `${failed ? `<div class="info-box err">${esc(t('The server rejected the login. Check the username and password and type it again.'))}${tip ? `<br>${esc(tip)}` : ''}${said ? `<br><span class="muted">${esc(t('Server reply: {reply}', { reply: said }))}</span>` : ''}</div>` : ''}
+               <label class="field">${esc(t('Password'))}<input id="pw" type="password" autocomplete="off"></label>
+               ${canSave ? `<label class="check"><input type="checkbox" id="pwSave" checked> ${esc(t('Remember in {place}', { place: S.platform?.keychain || t('the system keychain') }))}</label>` : ''}`,
+        buttons: [{ label: t('Cancel'), value: null }, { label: t('Connect'), value: 'ok', primary: true }],
       });
       if (value && $('#pw', m).value) return connect({ password: $('#pw', m).value, save: canSave && $('#pwSave', m).checked });
     } else {
-      modal({ title: 'Connection failed', body: `<p>${esc(e.message)}</p>`, buttons: [{ label: 'OK', value: null, primary: true }] });
+      modal({ title: t('Connection failed'), body: `<p>${esc(e.message)}</p>`, buttons: [{ label: t('OK'), value: null, primary: true }] });
     }
   } finally {
     $('#btnConnect').disabled = false;
@@ -1352,7 +1360,7 @@ document.addEventListener('click', async e => {
   e.preventDefault();
   const input = b.parentElement.querySelector('input');
   if (b.dataset.current) {
-    if (!S.status.connected || !PR.path) return toast('Connect and open a folder in the server pane first');
+    if (!S.status.connected || !PR.path) return toast(t('Connect and open a folder in the server pane first'));
     input.value = PR.path;
   } else {
     const cur = input.value.trim();
@@ -1371,7 +1379,7 @@ document.addEventListener('click', async e => {
 async function editRemote(ent) {
   try {
     await api('edit_open', { path: ent.path });
-    toast(`Opened ${ent.name} in your editor – save it there to upload your changes`, 'ok');
+    toast(t('Opened {name} in your editor – save it there to upload your changes', { name: ent.name }), 'ok');
     kickPoll();
   } catch (e) { toast(e.message, 'error'); }
 }
@@ -1381,25 +1389,25 @@ function renderEdits(edits) {
   tab.hidden = !edits.length;
   $('#editCount').textContent = edits.length;
   if (!edits.length && !$('#edits').hidden) $$('.tab')[0].click();
-  const label = { watching: 'Watching for changes', changed: 'Changed – not uploaded yet', uploading: 'Uploading…' };
+  const label = { watching: t('Watching for changes'), changed: t('Changed – not uploaded yet'), uploading: t('Uploading…') };
   const html = edits.map(x => `<div class="job ${x.state === 'changed' ? 'error' : x.state === 'uploading' ? 'running' : 'done'}">
       <span class="dot"></span>
       <div style="min-width:0"><div class="title">${esc(x.name)} <span class="muted">· ${esc(x.site)}</span></div>
         <div class="sub">${esc(x.remote_path)}</div>${x.error ? `<div class="err">${esc(x.error)}</div>` : ''}</div>
-      <div class="sub">${label[x.state] || x.state}</div><div></div>
-      <div class="edit-actions">${x.state === 'changed' ? `<button class="small primary" data-eup="${x.id}">Upload</button>` : ''}<button class="small" data-estop="${x.id}" title="Stop watching this file">Close</button></div>
+      <div class="sub">${esc(label[x.state] || x.state)}</div><div></div>
+      <div class="edit-actions">${x.state === 'changed' ? `<button class="small primary" data-eup="${x.id}">${esc(t('Upload'))}</button>` : ''}<button class="small" data-estop="${x.id}" title="${esc(t('Stop watching this file'))}">${esc(t('Close'))}</button></div>
     </div>`).join('');
   const box = $('#edits');
-  if (box.dataset.html !== html) { box.innerHTML = html || '<div class="empty">No files being edited.</div>'; box.dataset.html = html; }
+  if (box.dataset.html !== html) { box.innerHTML = html || `<div class="empty">${esc(t('No files being edited.'))}</div>`; box.dataset.html = html; }
   for (const x of edits) {
     if (x.state !== 'changed') { S.editPrompted.delete(x.id); continue; }
     if (S.editPrompted.has(x.id) || x.error) continue;
     S.editPrompted.add(x.id);
     modal({
-      title: 'File changed',
-      body: `<p><b>${esc(x.name)}</b> was changed in your editor.<br>Upload it to <span class="mono">${esc(x.site)}:${esc(x.remote_path)}</span>?</p>
-             <label class="check"><input type="checkbox" id="edAlways"> Always upload edited files without asking</label>`,
-      buttons: [{ label: 'Not now', value: null }, { label: 'Upload', value: 'ok', primary: true }],
+      title: t('File changed'),
+      body: `<p>${t('<b>{name}</b> was changed in your editor.', { name: esc(x.name) })}<br>${t('Upload it to {target}?', { target: `<span class="mono">${esc(x.site)}:${esc(x.remote_path)}</span>` })}</p>
+             <label class="check"><input type="checkbox" id="edAlways"> ${esc(t('Always upload edited files without asking'))}</label>`,
+      buttons: [{ label: t('Not now'), value: null }, { label: t('Upload'), value: 'ok', primary: true }],
     }).then(async ({ value, el }) => {
       if ($('#edAlways', el).checked) {
         try { S.settings = (await api('settings_save', { settings: { edit_auto_upload: true } })).settings; } catch { /* ignore */ }
@@ -1411,7 +1419,7 @@ function renderEdits(edits) {
 async function uploadEdit(id) {
   try {
     const r = await api('edit_upload', { id });
-    watchJob(r.job_id, job => { if (job.status === 'done') toast(job.result?.message || 'Uploaded', 'ok'); });
+    watchJob(r.job_id, job => { if (job.status === 'done') toast(job.result?.message || t('Uploaded'), 'ok'); });
   } catch (e) { toast(e.message, 'error'); }
 }
 $('#edits').addEventListener('click', e => {
@@ -1420,11 +1428,11 @@ $('#edits').addEventListener('click', e => {
 });
 // Called by the app window (filebridge_app.py) with the full paths of files dropped from Finder / Explorer
 window.fbOsDrop = paths => {
-  const t = S.osDropTarget;
+  const target = S.osDropTarget;
   S.osDropTarget = null;
-  if (!paths?.length || !t) return;
-  if (t.side !== 'remote') return toast('Drop files on the server side to upload them');
-  startTransfer('upload', paths, t.dir);
+  if (!paths?.length || !target) return;
+  if (target.side !== 'remote') return toast(t('Drop files on the server side to upload them'));
+  startTransfer('upload', paths, target.dir);
 };
 
 /* ---------------------------------------------------------------- synchronized browsing */
@@ -1442,16 +1450,16 @@ function joinRel(base, rel, side) {
   return (base.endsWith(sep) ? base : base + sep) + rel.split('/').join(sep);
 }
 function setSync(on) {
-  if (on && !S.status.connected) { toast('Connect to a server first'); on = false; }
+  if (on && !S.status.connected) { toast(t('Connect to a server first')); on = false; }
   S.syncBrowse = on ? { local: PL.path, remote: PR.path } : null;
   $('#btnSync').classList.toggle('on', !!on);
-  if (on) toast(`Synchronized browsing: ${PL.path}  ⇄  ${PR.path}`, 'ok');
+  if (on) toast(t('Synchronized browsing: {local}  ⇄  {remote}', { local: PL.path, remote: PR.path }), 'ok');
 }
 async function syncBrowse(pane) {
   if (!S.syncBrowse || !S.status.connected) return;
   const other = pane.other;
   const rel = relPath(S.syncBrowse[pane.side], pane.path, pane.side);
-  if (rel === null) { setSync(false); toast('Synchronized browsing turned off – you left the synced folders'); return; }
+  if (rel === null) { setSync(false); toast(t('Synchronized browsing turned off – you left the synced folders')); return; }
   const target = joinRel(S.syncBrowse[other.side], rel, other.side);
   other._syncing = true;
   try {
@@ -1461,7 +1469,8 @@ async function syncBrowse(pane) {
     if (!other.remote) store.set('localPath', other.path);
     other.render();
   } catch (e) {
-    toast(`“${rel || '/'}” does not exist ${other.remote ? 'on the server' : 'locally'} – synchronized browsing turned off`, 'error');
+    toast(other.remote ? t('“{path}” does not exist on the server – synchronized browsing turned off', { path: rel || '/' })
+      : t('“{path}” does not exist locally – synchronized browsing turned off', { path: rel || '/' }), 'error');
     setSync(false);
   } finally { other._syncing = false; }
 }
@@ -1478,7 +1487,7 @@ $('#quickbar').addEventListener('submit', async () => {
   const quick = { host: f.elements.host.value, username: f.elements.username.value, password: f.elements.password.value, port: f.elements.port.value };
   const el = $('#connStatus');
   el.className = 'status busy';
-  el.textContent = `Connecting to ${quick.host}…`;
+  el.textContent = t('Connecting to {host}…', { host: quick.host });
   try {
     saveTabState();
     const r = await api('connect', { quick });
@@ -1488,56 +1497,163 @@ $('#quickbar').addEventListener('submit', async () => {
     S.switching = false;
     S.tabState[r.status.tab] = { remote: r.remote_path };
     await PR.load(r.remote_path);
-    toast(`Connected to ${r.status.label}`, 'ok');
+    toast(t('Connected to {host}', { host: r.status.label }), 'ok');
   } catch (e) {
     applyStatus(S.status); kickPoll();
-    const msg = e.message.startsWith('NEED_PASSWORD') ? 'Login failed: wrong username or password.' : e.message;
-    modal({ title: 'Connection failed', body: `<p>${esc(msg)}</p>`, buttons: [{ label: 'OK', value: null, primary: true }] });
+    const msg = e.message.startsWith('NEED_PASSWORD') ? t('Login failed: wrong username or password.') : e.message;
+    modal({ title: t('Connection failed'), body: `<p>${esc(msg)}</p>`, buttons: [{ label: t('OK'), value: null, primary: true }] });
   }
 });
 
-/* ---------------------------------------------------------------- settings (filters, speed limits, editing) */
-async function openSettings() {
-  const st = (await api('settings')).settings;
-  const body = `
-    <div class="sm-group">Filename filters</div>
-    <label class="check"><input type="checkbox" id="stFilt" ${st.filters_enabled ? 'checked' : ''}> Use filters</label>
-    <label class="field">Names to filter – one per line, wildcards allowed (e.g. *.log)
-      <textarea id="stFilters" rows="6" class="mono" spellcheck="false">${esc(st.filters.join('\n'))}</textarea></label>
-    <label class="check"><input type="checkbox" id="stHide" ${st.filters_hide ? 'checked' : ''}> Hide them in the file lists</label>
-    <label class="check"><input type="checkbox" id="stNoTx" ${st.filters_transfer ? 'checked' : ''}> Never upload or download them</label>
-    <div class="perm-sep"></div>
-    <div class="sm-group">Speed limits</div>
-    <div class="row">
-      <label class="field">Upload (KB/s, 0 = unlimited)<input id="stUp" class="mono" value="${st.limit_up}"></label>
-      <label class="field">Download (KB/s, 0 = unlimited)<input id="stDown" class="mono" value="${st.limit_down}"></label>
-    </div>
-    <div class="perm-sep"></div>
-    <div class="sm-group">View / Edit</div>
-    <label class="field">Editor for “View/Edit” (empty = your system's text editor)
-      <span class="with-btn"><input id="stEditor" value="${esc(st.editor)}" placeholder="e.g. /Applications/Visual Studio Code.app"><button type="button" data-pick="file">Browse…</button></span></label>
-    <label class="check"><input type="checkbox" id="stAuto" ${st.edit_auto_upload ? 'checked' : ''}> Upload edited files automatically, without asking</label>
-    <div class="perm-sep"></div>
-    <div class="sm-group">Updates</div>
-    <label class="check"><input type="checkbox" id="stUpd" ${st.check_updates ? 'checked' : ''}> Check for a new FileBridge version at startup</label>`;
-  const { value, el } = await modal({
-    title: 'Settings', body, size: 'mid',
-    buttons: [{ label: 'Cancel', value: null }, { label: 'Save', value: 'ok', primary: true }],
+/* ---------------------------------------------------------------- settings (tabs like Eben Email) */
+async function openSettings(tab = 'general', extra = {}) {
+  let st;
+  try { st = { ...(await api('settings')).settings }; } catch (e) { return toast(e.message, 'error'); }
+  st.language = st.language || store.get('lang', 'auto') || 'auto';
+  st.filters = (st.filters || []).join('\n');
+  const startLang = st.language;
+  const tabs = [['general', t('General')], ['filters', t('Filters')], ['transfers', t('Transfers')], ['edit', t('View/Edit')], ['manual', t('User manual')]];
+  const opt = (obj, sel) => Object.entries(obj).map(([k, l]) => `<option value="${esc(k)}"${k === sel ? ' selected' : ''}>${esc(l)}</option>`).join('');
+  const check = (name, label, note = '') => `<label class="check"><input type="checkbox" data-s="${name}"${st[name] ? ' checked' : ''}> ${esc(label)}</label>${note ? `<div class="note">${esc(note)}</div>` : ''}`;
+
+  const pages = {
+    general: () => `<div class="set-grid">
+      <label>${esc(t('Language'))}</label><select data-s="language">${opt({ auto: t('Automatic'), ...LANGS }, st.language)}</select>
+      <label>${esc(t('Updates'))}</label><div>${check('check_updates', t('Check for a new FileBridge version at startup'))}</div>
+    </div>`,
+    filters: () => `<div class="set-grid">
+      <label>${esc(t('Filename filters'))}</label><div>${check('filters_enabled', t('Use filters'))}</div>
+      <label class="top">${esc(t('Names to filter'))}</label><div><textarea data-s="filters" rows="7" class="mono" spellcheck="false">${esc(st.filters)}</textarea>
+        <div class="note">${esc(t('One per line, wildcards allowed (e.g. *.log)'))}</div></div>
+      <label class="top">${esc(t('Filtered names'))}</label><div>${check('filters_hide', t('Hide them in the file lists'))}${check('filters_transfer', t('Never upload or download them'))}</div>
+    </div>`,
+    transfers: () => `<div class="set-grid">
+      <label>${esc(t('Upload speed'))}</label><div class="inline-set"><input data-s="limit_up" class="mono" inputmode="numeric" value="${esc(st.limit_up)}"> KB/s</div>
+      <label>${esc(t('Download speed'))}</label><div class="inline-set"><input data-s="limit_down" class="mono" inputmode="numeric" value="${esc(st.limit_down)}"> KB/s</div>
+      <div></div><div class="note">${esc(t('0 = unlimited. The limit applies to all transfers together.'))}</div>
+    </div>`,
+    edit: () => `<div class="set-grid">
+      <label class="top">${esc(t('Editor'))}</label><div><span class="with-btn"><input data-s="editor" value="${esc(st.editor)}" placeholder="${esc(t('e.g. /Applications/Visual Studio Code.app'))}"><button type="button" data-pick="file">${esc(t('Browse…'))}</button></span>
+        <div class="note">${esc(t('Used for “View/Edit”. Leave empty to use your system\'s text editor.'))}</div></div>
+      <label>${esc(t('After editing'))}</label><div>${check('edit_auto_upload', t('Upload edited files automatically, without asking'))}</div>
+    </div>`,
+    manual: () => manualHtml(),
+  };
+
+  let current = tabs.some(x => x[0] === tab) ? tab : 'general';
+  const render = el => {
+    $$('.set-tab', el).forEach(b => b.classList.toggle('active', b.dataset.tab === current));
+    const page = $('.set-page', el);
+    page.innerHTML = pages[current]();
+    $$('[data-s]', page).forEach(inp => {
+      inp.oninput = inp.onchange = () => { st[inp.dataset.s] = inp.type === 'checkbox' ? inp.checked : inp.value; };
+    });
+    if (current === 'manual') { wireManual(page, extra.section); extra.section = ''; }
+  };
+
+  modal({
+    title: t('Settings'),
+    size: 'set-size',
+    body: `<div class="settings"><nav class="set-tabs">${tabs.map(([id, label]) => `<button type="button" class="set-tab" data-tab="${id}">${esc(label)}</button>`).join('')}</nav><div class="set-page"></div></div>`,
+    buttons: [
+      { label: t('Close'), value: null },
+      { label: t('Save'), primary: true, onClick: async (el, close) => {
+        try {
+          const r = await api('settings_save', { settings: {
+            filters_enabled: !!st.filters_enabled, filters: String(st.filters || '').split('\n'),
+            filters_hide: !!st.filters_hide, filters_transfer: !!st.filters_transfer,
+            limit_up: st.limit_up, limit_down: st.limit_down,
+            editor: st.editor, edit_auto_upload: !!st.edit_auto_upload, check_updates: !!st.check_updates,
+            language: st.language,
+          } });
+          S.settings = r.settings;
+          const lang = r.settings.language || st.language;
+          store.set('lang', lang);
+          close('ok');
+          if (lang !== startLang && resolveLang(lang) !== LANG) { location.reload(); return; }
+          toast(t('Settings saved'), 'ok');
+          PL.refresh(); if (S.status.connected) PR.refresh();
+        } catch (e) { toast(e.message, 'error'); }
+      } },
+    ],
+    onOpen: el => {
+      $$('.set-tab', el).forEach(b => { b.onclick = () => { current = b.dataset.tab; render(el); }; });
+      render(el);
+    },
   });
-  if (!value) return;
-  try {
-    const r = await api('settings_save', { settings: {
-      filters_enabled: $('#stFilt', el).checked, filters: $('#stFilters', el).value.split('\n'),
-      filters_hide: $('#stHide', el).checked, filters_transfer: $('#stNoTx', el).checked,
-      limit_up: $('#stUp', el).value, limit_down: $('#stDown', el).value,
-      editor: $('#stEditor', el).value, edit_auto_upload: $('#stAuto', el).checked, check_updates: $('#stUpd', el).checked,
-    } });
-    S.settings = r.settings;
-    toast('Settings saved', 'ok');
-    PL.refresh(); if (S.status.connected) PR.refresh();
-  } catch (e) { toast(e.message, 'error'); }
 }
-$('#btnSettings').onclick = openSettings;
+$('#btnSettings').onclick = () => openSettings();
+
+/* ---------------------------------------------------------------- user manual (Settings → User manual, or Manual in the footer)
+   The text is in static/manual/<language>.html, the pictures in static/manual/img/<language>/.
+   A picture is written as <img data-shot="name">. */
+const manualHtml = () => `<div class="manual">
+  <div class="man-bar"><input type="search" id="manSearch" placeholder="${esc(t('Search the manual'))}" spellcheck="false">
+    <select id="manToc"><option value="">${esc(t('Go to…'))}</option></select></div>
+  <div class="man-body"><div class="muted">${esc(t('Loading…'))}</div></div></div>`;
+
+async function loadManualText() {
+  for (const lang of [...new Set([LANG, 'en'])]) {
+    try {
+      const r = await fetch(`/static/manual/${lang}.html`);
+      if (r.ok) return { lang, html: await r.text() };
+    } catch { /* try the next language */ }
+  }
+  return { lang: 'en', html: `<p class="muted">${esc(t('The manual could not be loaded.'))}</p>` };
+}
+
+async function wireManual(page, section = '') {
+  const body = $('.man-body', page);
+  const { lang, html } = await loadManualText();
+  if (!body.isConnected) return;  // another tab was chosen meanwhile
+  body.innerHTML = keyText(html);  // ⌘ becomes Ctrl+ on Windows and Linux
+  const os = IS_MAC_UI ? 'mac' : /Win/.test(navigator.platform || navigator.userAgent || '') || S.platform?.sep === '\\' ? 'win' : 'linux';
+  $$('[data-os]', body).forEach(el => { el.hidden = !el.dataset.os.split(' ').includes(os); });  // text for this computer only
+  $$('img[data-shot]', body).forEach(img => {
+    img.loading = 'lazy';
+    img.src = `/static/manual/img/${lang}/${img.dataset.shot}.jpg`;
+    img.onerror = () => { if (!img.src.includes('/img/en/')) img.src = `/static/manual/img/en/${img.dataset.shot}.jpg`; };
+    img.onclick = () => showPicture(img);
+    img.title = t('Click to enlarge');
+  });
+  const sections = $$('section', body);
+  const toc = $('#manToc', page);
+  toc.innerHTML += sections.map(s => `<option value="${esc(s.id)}">${esc($('h2', s)?.textContent || s.id)}</option>`).join('');
+  const go = id => { const s = id && $(`#${CSS.escape(id)}`, body); if (s) body.scrollTop = s.offsetTop - body.offsetTop - 6; };
+  toc.onchange = () => { go(toc.value); toc.value = ''; };
+  $$('a[href^="#"]', body).forEach(a => { a.onclick = e => { e.preventDefault(); go(a.getAttribute('href').slice(1)); }; });
+  const search = $('#manSearch', page);
+  search.oninput = () => {
+    const words = search.value.toLowerCase().split(/\s+/).filter(Boolean);
+    let shown = 0;
+    for (const s of sections) {
+      const text = s.textContent.toLowerCase();
+      s.hidden = !words.every(w => text.includes(w));
+      if (!s.hidden) shown++;
+    }
+    $('.man-none', body)?.remove();
+    if (!shown && sections.length) body.insertAdjacentHTML('beforeend', `<p class="man-none muted">${esc(t('No part of the manual matches.'))}</p>`);
+    body.scrollTop = 0;
+  };
+  if (section) go(section);
+}
+
+function showPicture(img) {
+  const ov = document.createElement('div');
+  ov.className = 'man-zoom';
+  ov.innerHTML = `<img src="${esc(img.src)}" alt="">`;
+  // window (capture) hears Escape before the settings window does, so Escape only closes the picture
+  const close = () => { ov.remove(); window.removeEventListener('keydown', onKey, true); };
+  const onKey = e => { if (e.key === 'Escape') { e.stopPropagation(); e.preventDefault(); close(); } };
+  ov.onclick = close;
+  window.addEventListener('keydown', onKey, true);
+  document.body.append(ov);
+}
+
+function openManual(section = '') {
+  openSettings('manual', { section });
+}
+$('#btnManual').onclick = e => { e.preventDefault(); openManual(); };
 
 /* ---------------------------------------------------------------- update notice */
 async function checkUpdate() {
@@ -1546,16 +1662,16 @@ async function checkUpdate() {
   if (!up?.newer) return;
   const a = $('#updateLink');
   a.hidden = false;
-  a.textContent = `Update available: v${up.latest}`;
+  a.textContent = t('Update available: v{version}', { version: up.latest });
   a.onclick = e => { e.preventDefault(); api('open_url', { url: up.url }); };
   if (store.get('update.told') === up.latest) return;  // tell about each new version once; the footer link stays
   store.set('update.told', up.latest);
   const { value } = await modal({
-    title: `FileBridge ${up.latest} is available`, size: 'mid',
-    body: `<p>You have version ${esc(up.current)}. Your sites and passwords are kept when you update.</p>
-      ${up.notes ? `<div class="sm-group">What's new</div><pre class="result notes">${esc(up.notes.replace(/\*\*|`/g, ''))}</pre>` : ''}
-      <p class="muted sm-note">Download the new version and replace the app. You can turn this check off in Settings → Updates.</p>`,
-    buttons: [{ label: 'Later', value: null }, { label: 'Open download page', value: 'ok', primary: true }],
+    title: t('FileBridge {version} is available', { version: up.latest }), size: 'mid',
+    body: `<p>${esc(t('You have version {version}. Your sites and passwords are kept when you update.', { version: up.current }))}</p>
+      ${up.notes ? `<div class="sm-group">${esc(t("What's new"))}</div><pre class="result notes">${esc(up.notes.replace(/\*\*|`/g, ''))}</pre>` : ''}
+      <p class="muted sm-note">${esc(t('Download the new version and replace the app. You can turn this check off in Settings → General.'))}</p>`,
+    buttons: [{ label: t('Later'), value: null }, { label: t('Open download page'), value: 'ok', primary: true }],
   });
   if (value) api('open_url', { url: up.url });
 }
@@ -1568,15 +1684,15 @@ async function quitApp() {
     busy = r.jobs.filter(j => j.status === 'running' || j.status === 'queued').length;
     unsent = (r.edits || []).filter(x => x.state === 'changed' || x.state === 'uploading').length;
   } catch (e) { /* ask anyway */ }
-  const warn = [busy && `${busy} transfer${busy > 1 ? 's are' : ' is'} still running and will be cancelled.`,
-    unsent && `${unsent} edited file${unsent > 1 ? 's have' : ' has'} changes that are not uploaded yet.`].filter(Boolean);
-  if (!await confirmBox('Quit FileBridge', warn.length ? warn.map(esc).join('<br>') + '<br><br>Quit anyway?'
-    : 'Close FileBridge and all connections?', 'Quit', warn.length > 0)) return;
+  const warn = [busy && (busy > 1 ? t('{n} transfers are still running and will be cancelled.', { n: busy }) : t('1 transfer is still running and will be cancelled.')),
+    unsent && (unsent > 1 ? t('{n} edited files have changes that are not uploaded yet.', { n: unsent }) : t('1 edited file has changes that are not uploaded yet.'))].filter(Boolean);
+  if (!await confirmBox(t('Quit FileBridge'), warn.length ? warn.map(esc).join('<br>') + '<br><br>' + esc(t('Quit anyway?'))
+    : esc(t('Close FileBridge and all connections?')), t('Quit'), warn.length > 0)) return;
   try { await api('quit'); } catch (e) { toast(e.message, 'error'); return; }
   S.quit = true; clearTimeout(pollTimer);
   const el = document.createElement('div');
   el.className = 'quit-done';
-  el.innerHTML = '<h1>FileBridge is closed</h1><p>You can close this tab.</p>';
+  el.innerHTML = `<h1>${esc(t('FileBridge is closed'))}</h1><p>${esc(t('You can close this tab.'))}</p>`;
   document.body.append(el);
 }
 $('#btnQuit').onclick = quitApp;
@@ -1586,23 +1702,23 @@ async function openFzImport(path) {
   let data;
   try { data = await api('filezilla_read', { path: path || null }); }
   catch (e) {
-    const p = await askText('Import from FileZilla', `${e.message}. Path of sitemanager.xml:`, path || '');
+    const p = await askText(t('Import from FileZilla'), `${e.message}. ${t('Path of sitemanager.xml:')}`, path || '');
     if (p) return openFzImport(p);
     return;
   }
-  if (!data.sites.length) { toast('No FTP/SFTP sites found in FileZilla'); return; }
+  if (!data.sites.length) { toast(t('No FTP/SFTP sites found in FileZilla')); return; }
   const rows = data.sites.map(x => `<tr>
       <td class="c-chk"><input type="checkbox" data-i="${x.index}" ${x.exists ? '' : 'checked'}></td>
-      <td>${esc(x.site.folder ? x.site.folder + ' / ' : '')}<b>${esc(x.site.name)}</b>${x.exists ? ' <span class="muted">(already in FileBridge)</span>' : ''}</td>
+      <td>${esc(x.site.folder ? x.site.folder + ' / ' : '')}<b>${esc(x.site.name)}</b>${x.exists ? ` <span class="muted">${esc(t('(already in FileBridge)'))}</span>` : ''}</td>
       <td class="mono">${esc(x.site.protocol.toUpperCase())} ${esc(x.site.host)}${x.site.port ? ':' + esc(x.site.port) : ''}</td>
       <td>${esc(x.site.username)}</td>
-      <td class="muted">${x.has_password ? 'password' : esc(x.password_note || (x.site.auth === 'ask' ? 'ask' : x.site.auth))}</td></tr>`).join('');
+      <td class="muted">${esc(x.has_password ? t('password') : x.password_note || (LOGON_LABEL[x.site.auth] || x.site.auth))}</td></tr>`).join('');
   const { value, el } = await modal({
-    title: 'Import from FileZilla', size: 'mid',
-    body: `<p class="muted" style="margin-top:0">From <span class="mono">${esc(data.path)}</span>. Passwords go straight into ${esc(S.platform?.keychain || 'the system keychain')}.</p>
-      <div class="cmp-wrap"><table class="cmp-table"><thead><tr><th style="width:30px"></th><th>Site</th><th>Server</th><th>User</th><th>Login</th></tr></thead><tbody>${rows}</tbody></table></div>
-      ${data.skipped.length ? `<p class="muted sm-note">Skipped: ${data.skipped.map(x => esc(x.name) + ' (' + esc(x.reason) + ')').join(', ')}</p>` : ''}`,
-    buttons: [{ label: 'Cancel', value: null }, { label: 'Import selected', value: 'ok', primary: true }],
+    title: t('Import from FileZilla'), size: 'mid',
+    body: `<p class="muted" style="margin-top:0">${t('From {path}. Passwords go straight into {place}.', { path: `<span class="mono">${esc(data.path)}</span>`, place: esc(S.platform?.keychain || t('the system keychain')) })}</p>
+      <div class="cmp-wrap"><table class="cmp-table"><thead><tr><th style="width:30px"></th><th>${esc(t('Site'))}</th><th>${esc(t('Server'))}</th><th>${esc(t('User'))}</th><th>${esc(t('Login'))}</th></tr></thead><tbody>${rows}</tbody></table></div>
+      ${data.skipped.length ? `<p class="muted sm-note">${esc(t('Skipped:'))} ${data.skipped.map(x => esc(x.name) + ' (' + esc(x.reason) + ')').join(', ')}</p>` : ''}`,
+    buttons: [{ label: t('Cancel'), value: null }, { label: t('Import selected'), value: 'ok', primary: true }],
   });
   if (!value) return;
   const indexes = $$('[data-i]', el).filter(c => c.checked).map(c => +c.dataset.i);
@@ -1610,19 +1726,19 @@ async function openFzImport(path) {
   try {
     const r = await api('filezilla_import', { indexes });
     S.sites = r.sites; S.folders = r.folders; renderSites();
-    toast(`Imported ${r.imported.length} site(s)`, 'ok');
+    toast(t('Imported {n} site(s)', { n: r.imported.length }), 'ok');
   } catch (e) { toast(e.message, 'error'); }
 }
 
 /* ---------------------------------------------------------------- site manager (FileZilla style) */
 const PROTO_LABEL = { sftp: 'SFTP - SSH File Transfer Protocol', ftp: 'FTP - File Transfer Protocol' };
 const ENC_LABEL = {
-  auto: 'Use explicit FTP over TLS if available', explicit: 'Require explicit FTP over TLS',
-  implicit: 'Require implicit FTP over TLS', plain: 'Only use plain FTP (insecure)',
+  auto: t('Use explicit FTP over TLS if available'), explicit: t('Require explicit FTP over TLS'),
+  implicit: t('Require implicit FTP over TLS'), plain: t('Only use plain FTP (insecure)'),
 };
-const LOGON_LABEL = { password: 'Normal', ask: 'Ask for password', anonymous: 'Anonymous', key: 'Key file', agent: 'SSH agent / keys in ~/.ssh' };
+const LOGON_LABEL = { password: t('Normal'), ask: t('Ask for password'), anonymous: t('Anonymous'), key: t('Key file'), agent: t('SSH agent / keys in ~/.ssh') };
 const LOGONS = { sftp: ['password', 'ask', 'key', 'agent'], ftp: ['password', 'ask', 'anonymous'] };
-const COLOR_LABEL = { '': 'None', red: 'Red', green: 'Green', blue: 'Blue', yellow: 'Yellow', cyan: 'Cyan', magenta: 'Magenta' };
+const COLOR_LABEL = { '': t('None'), red: t('Red'), green: t('Green'), blue: t('Blue'), yellow: t('Yellow'), cyan: t('Cyan'), magenta: t('Magenta') };
 const defaultPort = s => s.protocol === 'ftp' ? (s.encryption === 'implicit' ? 990 : 21) : 22;
 const SERVER_ICON = '<svg class="ico sm-srv" viewBox="0 0 16 16"><rect x="3" y="1.5" width="10" height="13" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M5.5 5h5M5.5 7.5h5" stroke="currentColor" stroke-width="1.2"/><circle cx="8" cy="11.3" r="1" fill="currentColor"/></svg>';
 
@@ -1641,92 +1757,93 @@ function openSiteManager(focusId) {
   const opt = (map, keys) => (keys || Object.keys(map)).map(k => `<option value="${k}">${esc(map[k])}</option>`).join('');
   const allFolders = () => [...new Set([...folders, ...work.map(s => s.folder).filter(Boolean)])].sort((a, b) => a.localeCompare(b));
 
+  const T = s => esc(t(s));
   const body = `<div class="sm">
     <div class="sm-left">
-      <div class="sm-label">Select entry:</div>
+      <div class="sm-label">${T('Select entry:')}</div>
       <div class="sm-tree" id="smTree"></div>
       <div class="sm-btns">
-        <button type="button" data-sm="newsite">New site</button>
-        <button type="button" data-sm="newfolder">New folder</button>
-        <button type="button" data-sm="rename">Rename</button>
-        <button type="button" data-sm="duplicate">Duplicate</button>
-        <button type="button" data-sm="delete">Delete</button>
+        <button type="button" data-sm="newsite">${T('New site')}</button>
+        <button type="button" data-sm="newfolder">${T('New folder')}</button>
+        <button type="button" data-sm="rename">${T('Rename')}</button>
+        <button type="button" data-sm="duplicate">${T('Duplicate')}</button>
+        <button type="button" data-sm="delete">${T('Delete')}</button>
       </div>
     </div>
     <div class="sm-right">
       <div class="sm-tabs">
-        <button type="button" class="sm-tab" data-tab="general">General</button>
-        <button type="button" class="sm-tab" data-tab="advanced">Advanced</button>
-        <button type="button" class="sm-tab" data-tab="transfer">Transfer Settings</button>
-        <button type="button" class="sm-tab" data-tab="charset">Charset</button>
+        <button type="button" class="sm-tab" data-tab="general">${T('General')}</button>
+        <button type="button" class="sm-tab" data-tab="advanced">${T('Advanced')}</button>
+        <button type="button" class="sm-tab" data-tab="transfer">${T('Transfer Settings')}</button>
+        <button type="button" class="sm-tab" data-tab="charset">${T('Charset')}</button>
       </div>
       <form id="smForm" autocomplete="off" class="sm-form" onsubmit="return false">
-        <div class="sm-empty muted">Select a site on the left, or click <b>New site</b>.</div>
+        <div class="sm-empty muted">${t('Select a site on the left, or click <b>New site</b>.')}</div>
         <div class="sm-page" data-page="general">
-          <label>Protocol:</label><select name="protocol">${opt(PROTO_LABEL)}</select>
-          <label>Host:</label><div class="sm-host"><input name="host" placeholder="example.com" spellcheck="false"><label>Port:</label><input name="port" class="sm-port"></div>
-          <label data-proto="ftp">Encryption:</label><select name="encryption" data-proto="ftp">${opt(ENC_LABEL)}</select>
-          <div data-proto="ftp" data-enc="plain"></div><div class="sm-warn" data-proto="ftp" data-enc="plain">Plain FTP sends your password and files unencrypted over the internet.</div>
+          <label>${T('Protocol:')}</label><select name="protocol">${opt(PROTO_LABEL)}</select>
+          <label>${T('Host:')}</label><div class="sm-host"><input name="host" placeholder="example.com" spellcheck="false"><label>${T('Port:')}</label><input name="port" class="sm-port"></div>
+          <label data-proto="ftp">${T('Encryption:')}</label><select name="encryption" data-proto="ftp">${opt(ENC_LABEL)}</select>
+          <div data-proto="ftp" data-enc="plain"></div><div class="sm-warn" data-proto="ftp" data-enc="plain">${T('Plain FTP sends your password and files unencrypted over the internet.')}</div>
           <div class="sm-sep"></div>
-          <label>Logon Type:</label><select name="auth"></select>
-          <label data-auth="password ask key agent">User:</label><input name="username" data-auth="password ask key agent" spellcheck="false">
+          <label>${T('Logon Type:')}</label><select name="auth"></select>
+          <label data-auth="password ask key agent">${T('User:')}</label><input name="username" data-auth="password ask key agent" spellcheck="false">
           <div data-panelhint hidden></div><p class="muted sm-note sm-panelhint" data-panelhint hidden></p>
-          <label data-auth="password">Password:</label><input name="password" type="password" autocomplete="new-password" data-auth="password" data-noenter="1">
-          <label data-auth="key">Key file:</label><div class="with-btn" data-auth="key"><input name="key_path" placeholder="~/.ssh/id_ed25519"><button type="button" data-pick="file" data-start="~/.ssh" data-invisibles="1">Browse…</button></div>
-          <label data-auth="key agent">Passphrase:</label><input name="passphrase" type="password" autocomplete="new-password" data-auth="key agent" placeholder="only if your key has one">
+          <label data-auth="password">${T('Password:')}</label><input name="password" type="password" autocomplete="new-password" data-auth="password" data-noenter="1">
+          <label data-auth="key">${T('Key file:')}</label><div class="with-btn" data-auth="key"><input name="key_path" placeholder="~/.ssh/id_ed25519"><button type="button" data-pick="file" data-start="~/.ssh" data-invisibles="1">${T('Browse…')}</button></div>
+          <label data-auth="key agent">${T('Passphrase:')}</label><input name="passphrase" type="password" autocomplete="new-password" data-auth="key agent" placeholder="${T('only if your key has one')}">
           <div class="sm-sep"></div>
-          <label>Background color:</label><div><select name="color" class="sm-color">${opt(COLOR_LABEL)}</select></div>
-          <label class="sm-top">Comments:</label><textarea name="comments" rows="4"></textarea>
+          <label>${T('Background color:')}</label><div><select name="color" class="sm-color">${opt(COLOR_LABEL)}</select></div>
+          <label class="sm-top">${T('Comments:')}</label><textarea name="comments" rows="4"></textarea>
         </div>
         <div class="sm-page" data-page="advanced">
-          <label>Default local directory:</label><div class="with-btn"><input name="local_dir" placeholder="~/Projects/site"><button type="button" data-pick="folder">Browse…</button></div>
-          <label>Default remote directory:</label><div class="with-btn"><input name="remote_dir" placeholder="/public_html"><button type="button" data-current="remote">Use current</button></div>
-          <label class="sm-top">Web addresses:</label><textarea name="web_map" rows="3" class="mono" spellcheck="false" placeholder="/public_html = https://example.com"></textarea>
-          <div></div><p class="muted sm-note">One per line: server folder = web address. Used for “Open in browser” / “Copy URL”, and to warn when archives or backups end up in a public folder. Subfolders follow automatically; add a line for a subfolder that has its own address.</p>
-          <div></div><p class="muted sm-note">These folders open automatically when you connect to this site.</p>
+          <label>${T('Default local directory:')}</label><div class="with-btn"><input name="local_dir" placeholder="~/Projects/site"><button type="button" data-pick="folder">${T('Browse…')}</button></div>
+          <label>${T('Default remote directory:')}</label><div class="with-btn"><input name="remote_dir" placeholder="/public_html"><button type="button" data-current="remote">${T('Use current')}</button></div>
+          <label class="sm-top">${T('Web addresses:')}</label><textarea name="web_map" rows="3" class="mono" spellcheck="false" placeholder="/public_html = https://example.com"></textarea>
+          <div></div><p class="muted sm-note">${T('One per line: server folder = web address. Used for “Open in browser” / “Copy URL”, and to warn when archives or backups end up in a public folder. Subfolders follow automatically; add a line for a subfolder that has its own address.')}</p>
+          <div></div><p class="muted sm-note">${T('These folders open automatically when you connect to this site.')}</p>
           <div class="sm-wide" data-proto="ftp">
-            <div class="sm-group">When FTP is blocked</div>
-            <label class="check"><input type="checkbox" name="fallback_sftp"> If FTP doesn't answer (e.g. blocked on public wifi), connect with SFTP instead</label>
+            <div class="sm-group">${T('When FTP is blocked')}</div>
+            <label class="check"><input type="checkbox" name="fallback_sftp"> ${T("If FTP doesn't answer (e.g. blocked on public wifi), connect with SFTP instead")}</label>
             <div class="sm-upperm">
-              <label>SFTP port <input name="fallback_port" class="mono" placeholder="22" inputmode="numeric"></label>
-              <label>SFTP user <input name="fallback_user" placeholder="same as FTP user" spellcheck="false"></label>
+              <label>${T('SFTP port')} <input name="fallback_port" class="mono" placeholder="22" inputmode="numeric"></label>
+              <label>${T('SFTP user')} <input name="fallback_user" placeholder="${T('same as FTP user')}" spellcheck="false"></label>
             </div>
-            <p class="muted sm-note">Uses the same password. Your hosting provider tells you the SSH port and user (e.g. the panel login); SSH access must be switched on for your account.</p>
+            <p class="muted sm-note">${T('Uses the same password. Your hosting provider tells you the SSH port and user (e.g. the panel login); SSH access must be switched on for your account.')}</p>
           </div>
         </div>
         <div class="sm-page" data-page="transfer">
           <div class="sm-wide">
-            <div class="sm-group">Permissions after upload</div>
-            <label class="check"><input type="checkbox" name="upload_perms"> Give everything I upload to this site fixed permissions</label>
+            <div class="sm-group">${T('Permissions after upload')}</div>
+            <label class="check"><input type="checkbox" name="upload_perms"> ${T('Give everything I upload to this site fixed permissions')}</label>
             <div class="sm-upperm">
-              <label>Folders <input name="upload_dir_mode" class="mono" placeholder="0755"></label>
-              <label>Files <input name="upload_file_mode" class="mono" placeholder="0644"></label>
+              <label>${T('Folders')} <input name="upload_dir_mode" class="mono" placeholder="0755"></label>
+              <label>${T('Files')} <input name="upload_file_mode" class="mono" placeholder="0644"></label>
             </div>
-            <p class="muted sm-note">Applies to uploads, drag &amp; drop, sync, deploy and plugins. Leave a field empty to leave that type alone.</p>
-            <div class="sm-group">Simultaneous transfers</div>
-            <label class="check">Send up to <input name="max_connections" class="mono" style="width:60px;margin:0 6px" inputmode="numeric"> files at the same time (1–10)</label>
-            <p class="muted sm-note">More is faster with many small files, especially on a slow connection. Lower it if the server complains about too many connections.</p>
+            <p class="muted sm-note">${T('Applies to uploads, drag & drop, sync, deploy and plugins. Leave a field empty to leave that type alone.')}</p>
+            <div class="sm-group">${T('Simultaneous transfers')}</div>
+            <label class="check">${t('Send up to {input} files at the same time (1–10)', { input: '<input name="max_connections" class="mono" style="width:60px;margin:0 6px" inputmode="numeric">' })}</label>
+            <p class="muted sm-note">${T('More is faster with many small files, especially on a slow connection. Lower it if the server complains about too many connections.')}</p>
           </div>
           <div class="sm-wide" data-proto="ftp">
-            <div class="sm-group">Transfer mode</div>
-            <label class="check"><input type="radio" name="transfer_mode" value="default"> Default</label>
-            <label class="check"><input type="radio" name="transfer_mode" value="active"> Active</label>
-            <label class="check"><input type="radio" name="transfer_mode" value="passive"> Passive</label>
-            <div class="sm-group">TLS certificate</div>
-            <label class="check"><input type="checkbox" name="ftps_insecure"> Accept the certificate even if it can't be verified</label>
-            <p class="muted sm-note">Only needed when the server's certificate doesn't match the host name, which is common on shared hosting.</p>
+            <div class="sm-group">${T('Transfer mode')}</div>
+            <label class="check"><input type="radio" name="transfer_mode" value="default"> ${T('Default')}</label>
+            <label class="check"><input type="radio" name="transfer_mode" value="active"> ${T('Active')}</label>
+            <label class="check"><input type="radio" name="transfer_mode" value="passive"> ${T('Passive')}</label>
+            <div class="sm-group">${T('TLS certificate')}</div>
+            <label class="check"><input type="checkbox" name="ftps_insecure"> ${T("Accept the certificate even if it can't be verified")}</label>
+            <p class="muted sm-note">${T("Only needed when the server's certificate doesn't match the host name, which is common on shared hosting.")}</p>
           </div>
-          <p class="muted sm-wide sm-note" data-proto="sftp">Transfer mode and TLS settings only apply to FTP.</p>
+          <p class="muted sm-wide sm-note" data-proto="sftp">${T('Transfer mode and TLS settings only apply to FTP.')}</p>
         </div>
         <div class="sm-page" data-page="charset">
           <div class="sm-wide" data-proto="ftp">
-            <p class="muted sm-note">The server uses this character set to encode file names:</p>
-            <label class="check"><input type="radio" name="cs_mode" value="auto"> Autodetect</label>
-            <label class="check"><input type="radio" name="cs_mode" value="utf-8"> Force UTF-8</label>
-            <label class="check"><input type="radio" name="cs_mode" value="custom"> Use custom charset</label>
-            <label class="field sm-indent">Encoding:<input name="charset_custom" placeholder="e.g. latin-1 or cp1252"></label>
+            <p class="muted sm-note">${T('The server uses this character set to encode file names:')}</p>
+            <label class="check"><input type="radio" name="cs_mode" value="auto"> ${T('Autodetect')}</label>
+            <label class="check"><input type="radio" name="cs_mode" value="utf-8"> ${T('Force UTF-8')}</label>
+            <label class="check"><input type="radio" name="cs_mode" value="custom"> ${T('Use custom charset')}</label>
+            <label class="field sm-indent">${T('Encoding:')}<input name="charset_custom" placeholder="${T('e.g. latin-1 or cp1252')}"></label>
           </div>
-          <p class="muted sm-wide" data-proto="sftp">SFTP always uses UTF-8 for file names.</p>
+          <p class="muted sm-wide" data-proto="sftp">${T('SFTP always uses UTF-8 for file names.')}</p>
         </div>
       </form>
     </div>
@@ -1783,9 +1900,9 @@ function openSiteManager(focusId) {
     E('color').value = s.color || '';
     const sec = secrets[s.id] || {};
     E('password').value = '';
-    E('password').placeholder = sec.password ? '•••••••• (new, saved on OK)' : s.has_password ? '•••••••• (saved – leave empty to keep)' : '';
+    E('password').placeholder = sec.password ? '•••••••• ' + t('(new, saved on OK)') : s.has_password ? '•••••••• ' + t('(saved – leave empty to keep)') : '';
     E('passphrase').value = '';
-    E('passphrase').placeholder = sec.passphrase || s.has_passphrase ? '•••••••• (saved)' : 'only if your key has one';
+    E('passphrase').placeholder = sec.passphrase || s.has_passphrase ? '•••••••• ' + t('(saved)') : t('only if your key has one');
     E('transfer_mode').value = s.transfer_mode || 'default';
     E('ftps_insecure').checked = !!s.ftps_insecure;
     E('fallback_sftp').checked = !!s.fallback_sftp;
@@ -1816,7 +1933,7 @@ function openSiteManager(focusId) {
     const user = E('username').value.trim();
     const better = r.panel === 'plesk' && user.includes('@') ? user.split('@')[0] : '';
     const p = boxes[1];
-    p.innerHTML = esc(r.hint) + (better ? ` <button type="button" class="small" data-fixuser="${esc(better)}">Use “${esc(better)}”</button>` : '');
+    p.innerHTML = esc(r.hint) + (better ? ` <button type="button" class="small" data-fixuser="${esc(better)}">${esc(t('Use “{name}”', { name: better }))}</button>` : '');
     boxes.forEach(b => { b.hidden = false; });
   }
 
@@ -1824,33 +1941,33 @@ function openSiteManager(focusId) {
   async function testConnection() {
     readForm();
     const s = sel?.type === 'site' && siteById(sel.id);
-    if (!s) return toast('Select a site to test');
+    if (!s) return toast(t('Select a site to test'));
     const sid = s.id.startsWith('new-') ? s.copy_from : s.id;
     let password = secrets[s.id]?.password;
     const saved = sid && S.sites.find(x => x.id === sid)?.has_password;
     if (['password', 'ask'].includes(s.auth) && !password && !saved) {
-      password = await askText('Test connection', `Password for ${s.username}@${s.host}`, '', 'password');
+      password = await askText(t('Test connection'), t('Password for {user}', { user: `${s.username}@${s.host}` }), '', 'password');
       if (password == null) return;
     }
     let closeWait;
-    modal({ title: 'Test connection', body: `<p class="muted">Testing ${esc(s.host)} … this can take up to half a minute.</p>`, buttons: [], onOpen(m, c) { closeWait = c; } });
+    modal({ title: t('Test connection'), body: `<p class="muted">${esc(t('Testing {host} … this can take up to half a minute.', { host: s.host }))}</p>`, buttons: [], onOpen(m, c) { closeWait = c; } });
     let r;
     try { r = await api('site_test', { site: s, site_id: sid, password, passphrase: secrets[s.id]?.passphrase }); }
-    catch (e) { r = { steps: [{ name: 'Settings', ok: false, detail: e.message }], fixes: [] }; }
+    catch (e) { r = { steps: [{ name: t('Settings'), ok: false, detail: e.message }], fixes: [] }; }
     closeWait(null);
     const mark = ok => ok === true ? '<b class="t-ok">✓</b>' : ok === false ? '<b class="t-err">✗</b>' : '<b class="muted">•</b>';
     const allOk = r.steps.length && r.steps.every(x => x.ok !== false);
-    const body = `<p>${allOk ? '<b class="t-ok">Everything works.</b>' : '<b class="t-err">Something is wrong – see the red step.</b>'}</p>
+    const body = `<p>${allOk ? `<b class="t-ok">${esc(t('Everything works.'))}</b>` : `<b class="t-err">${esc(t('Something is wrong – see the red step.'))}</b>`}</p>
       <div class="ctest">${r.steps.map(x => `<div>${mark(x.ok)}</div><div><b>${esc(x.name)}</b><br><span class="muted">${esc(x.detail)}</span></div>`).join('')}</div>
-      ${r.fixes.length ? `<p class="muted sm-note">Suggested fix:</p><div class="row">${r.fixes.map((f, i) => `<button type="button" data-fix="${i}">${esc(f.label)}</button>`).join('')}</div>` : ''}`;
-    modal({ title: 'Test connection', body, size: 'mid', buttons: [{ label: 'Close', value: null, primary: true }],
+      ${r.fixes.length ? `<p class="muted sm-note">${esc(t('Suggested fix:'))}</p><div class="row">${r.fixes.map((f, i) => `<button type="button" data-fix="${i}">${esc(f.label)}</button>`).join('')}</div>` : ''}`;
+    modal({ title: t('Test connection'), body, size: 'mid', buttons: [{ label: t('Close'), value: null, primary: true }],
       onOpen(m, close) {
         m.addEventListener('click', e => {
           const b = e.target.closest('[data-fix]');
           if (!b) return;
           Object.assign(s, r.fixes[+b.dataset.fix].patch);
           fillForm();
-          toast('Changed – click Test connection again, or OK to save', 'ok');
+          toast(t('Changed – click Test connection again, or OK to save'), 'ok');
           close(null);
         });
       } });
@@ -1858,12 +1975,12 @@ function openSiteManager(focusId) {
 
   // --- tree ---
   function renderTree() {
-    const t = $('#smTree', el);
+    const tree = $('#smTree', el);
     const isSel = (type, v) => sel?.type === type && (type === 'site' ? sel.id === v : type === 'folder' ? sel.name === v : true);
     const siteRow = s => `<div class="sm-node sm-site ${isSel('site', s.id) ? 'active' : ''}" data-site="${esc(s.id)}" draggable="true">
       ${SERVER_ICON}<span>${esc(s.name)}</span>${s.color ? `<i class="sm-dot" style="background:var(--c-${s.color})"></i>` : ''}</div>`;
     const inFolder = f => work.filter(s => (s.folder || '') === f).sort(byName).map(siteRow).join('');
-    t.innerHTML = `<div class="sm-node sm-folder ${isSel('root') ? 'active' : ''}" data-folder="">${ICON.dir}<span>My Sites</span></div>
+    tree.innerHTML = `<div class="sm-node sm-folder ${isSel('root') ? 'active' : ''}" data-folder="">${ICON.dir}<span>${esc(t('My Sites'))}</span></div>
       <div class="sm-children">
         ${allFolders().map(f => `<div class="sm-node sm-folder ${isSel('folder', f) ? 'active' : ''}" data-folder="${esc(f)}">${ICON.dir}<span>${esc(f)}</span></div>
           <div class="sm-children">${inFolder(f)}</div>`).join('')}
@@ -1889,7 +2006,7 @@ function openSiteManager(focusId) {
   const actions = {
     async newsite() {
       readForm();
-      const name = await askText('New site', 'Name of the new site', uniqueName('New site'));
+      const name = await askText(t('New site'), t('Name of the new site'), uniqueName(t('New site')));
       if (!name) return;
       const s = {
         id: `new-${++tempN}`, name: name.trim(), folder: currentFolder(), protocol: 'sftp', host: '', port: '',
@@ -1904,7 +2021,7 @@ function openSiteManager(focusId) {
     },
     async newfolder() {
       readForm();
-      const name = await askText('New folder', 'Folder name', 'New folder');
+      const name = await askText(t('New folder'), t('Folder name'), t('New folder'));
       if (!name?.trim()) return;
       if (!folders.includes(name.trim())) folders.push(name.trim());
       select({ type: 'folder', name: name.trim() });
@@ -1913,10 +2030,10 @@ function openSiteManager(focusId) {
       readForm();
       if (sel?.type === 'site') {
         const s = siteById(sel.id);
-        const name = await askText('Rename site', 'New name', s.name);
+        const name = await askText(t('Rename site'), t('New name'), s.name);
         if (name?.trim()) { s.name = name.trim(); renderTree(); }
       } else if (sel?.type === 'folder') {
-        const name = (await askText('Rename folder', 'New name', sel.name))?.trim();
+        const name = (await askText(t('Rename folder'), t('New name'), sel.name))?.trim();
         if (!name || name === sel.name) return;
         folders = folders.map(f => f === sel.name ? name : f);
         work.forEach(s => { if (s.folder === sel.name) s.folder = name; });
@@ -1928,7 +2045,7 @@ function openSiteManager(focusId) {
     duplicate() {
       readForm();
       const s = siteById(sel.id);
-      const copy = { ...structuredClone(s), id: `new-${++tempN}`, name: uniqueName(`${s.name} (copy)`) };
+      const copy = { ...structuredClone(s), id: `new-${++tempN}`, name: uniqueName(t('{name} (copy)', { name: s.name })) };
       copy.copy_from = s.id.startsWith('new-') ? s.copy_from : s.id;
       if (secrets[s.id]) secrets[copy.id] = { ...secrets[s.id] };
       work.push(copy);
@@ -1938,13 +2055,13 @@ function openSiteManager(focusId) {
       readForm();
       if (sel?.type === 'site') {
         const s = siteById(sel.id);
-        if (!await confirmBox('Delete site', `Delete "${esc(s.name)}"? Its saved password is removed too (after you click OK).`, 'Delete', true)) return;
+        if (!await confirmBox(t('Delete site'), esc(t('Delete “{name}”? Its saved password is removed too (after you click OK).', { name: s.name })), t('Delete'), true)) return;
         work.splice(work.indexOf(s), 1);
         if (!s.id.startsWith('new-')) deleted.push(s.id);
         sel = null;
       } else if (sel?.type === 'folder') {
         const inside = work.filter(s => s.folder === sel.name);
-        if (!await confirmBox('Delete folder', `Delete the folder "${esc(sel.name)}"${inside.length ? ` and the ${inside.length} site(s) in it` : ''}?`, 'Delete', true)) return;
+        if (!await confirmBox(t('Delete folder'), esc(inside.length ? t('Delete the folder “{name}” and the {n} site(s) in it?', { name: sel.name, n: inside.length }) : t('Delete the folder “{name}”?', { name: sel.name })), t('Delete'), true)) return;
         for (const s of inside) { work.splice(work.indexOf(s), 1); if (!s.id.startsWith('new-')) deleted.push(s.id); }
         folders = folders.filter(f => f !== sel.name);
         sel = null;
@@ -1965,28 +2082,28 @@ function openSiteManager(focusId) {
       if (id) store.set('site', id);
       return { ok: true, id };
     } catch (e) {
-      modal({ title: 'Cannot save', body: `<p>${esc(e.message)}</p>`, buttons: [{ label: 'OK', value: null, primary: true }] });
+      modal({ title: t('Cannot save'), body: `<p>${esc(e.message)}</p>`, buttons: [{ label: t('OK'), value: null, primary: true }] });
       return { ok: false };
     }
   }
 
   return modal({
-    title: 'Site Manager', body, size: 'sm-size',
+    title: t('Site Manager'), body, size: 'sm-size',
     buttons: [
-      { label: 'Import from FileZilla…', left: true, onClick: async (m, close) => {
+      { label: t('Import from FileZilla…'), id: 'smImport', left: true, onClick: async (m, close) => {
         if (!(await commit()).ok) return;
         close('ok');
         await openFzImport();
         openSiteManager();
       } },
-      { label: 'Test connection', onClick: () => testConnection() },
-      { label: 'Connect', primary: true, onClick: async (m, close) => {
-        if (sel?.type !== 'site') return toast('Select a site to connect to');
+      { label: t('Test connection'), id: 'smTest', onClick: () => testConnection() },
+      { label: t('Connect'), id: 'smConnect', primary: true, onClick: async (m, close) => {
+        if (sel?.type !== 'site') return toast(t('Select a site to connect to'));
         const r = await commit();
         if (r.ok) { close('ok'); connect(); }
       } },
-      { label: 'OK', onClick: async (m, close) => { if ((await commit()).ok) close('ok'); } },
-      { label: 'Cancel', value: null },
+      { label: t('OK'), id: 'smOk', onClick: async (m, close) => { if ((await commit()).ok) close('ok'); } },
+      { label: t('Cancel'), id: 'smCancel', value: null },
     ],
     onOpen(m) {
       el = m;
@@ -2005,7 +2122,7 @@ function openSiteManager(focusId) {
       });
       tree.addEventListener('dblclick', e => {
         const n = e.target.closest('.sm-site');
-        if (n) $$('.mfoot button', el).find(b => b.textContent === 'Connect').click();
+        if (n) $('#smConnect', el).click();
       });
       // drag a site onto a folder (or "My Sites") to move it
       tree.addEventListener('dragstart', e => { const n = e.target.closest('.sm-site'); if (n) e.dataTransfer.setData('text/x-fb-site', n.dataset.site); });
@@ -2051,24 +2168,24 @@ function bookmarksMenu(x, y) {
   const site = currentSite();
   const bms = site?.bookmarks || [];
   const items = [];
-  if (!site) items.push({ header: 'Create a site first' });
+  if (!site) items.push({ header: t('Create a site first') });
   for (const b of bms) {
-    items.push({ label: b.name, hint: [b.local && 'local', b.remote && 'server'].filter(Boolean).join(' + '), action: () => {
+    items.push({ label: b.name, hint: [b.local && t('local'), b.remote && t('server')].filter(Boolean).join(' + '), action: () => {
       if (b.local) PL.load(b.local);
       if (b.remote && S.status.connected) PR.load(b.remote);
     } });
   }
   if (site) {
     if (bms.length) items.push({ sep: true });
-    items.push({ label: 'Bookmark current folders…', action: async () => {
-      const name = await askText('Add bookmark', 'Name', baseName(PR.path || PL.path) || 'Bookmark');
+    items.push({ label: t('Bookmark current folders…'), action: async () => {
+      const name = await askText(t('Add bookmark'), t('Name'), baseName(PR.path || PL.path) || t('Bookmark'));
       if (!name) return;
       const b = { name, local: PL.path, remote: S.status.connected ? PR.path : '' };
       const r = await api('site_update', { id: site.id, patch: { bookmarks: [...bms, b] } });
-      S.sites = r.sites; toast('Bookmark added', 'ok');
+      S.sites = r.sites; toast(t('Bookmark added'), 'ok');
     } });
-    if (bms.length) items.push({ label: 'Remove a bookmark…', action: async () => {
-      const name = await askText('Remove bookmark', 'Name of the bookmark to remove', bms.at(-1).name);
+    if (bms.length) items.push({ label: t('Remove a bookmark…'), action: async () => {
+      const name = await askText(t('Remove bookmark'), t('Name of the bookmark to remove'), bms.at(-1).name);
       if (!name) return;
       const r = await api('site_update', { id: site.id, patch: { bookmarks: bms.filter(b => b.name !== name) } });
       S.sites = r.sites;
@@ -2079,10 +2196,10 @@ function bookmarksMenu(x, y) {
 
 /* ---------------------------------------------------------------- compare & sync */
 const STATUS_LABEL = {
-  local_only: 'Only local', remote_only: 'Only on server', local_newer: 'Local newer',
-  remote_newer: 'Server newer', different: 'Different', same: 'Identical',
+  local_only: t('Only local'), remote_only: t('Only on server'), local_newer: t('Local newer'),
+  remote_newer: t('Server newer'), different: t('Different'), same: t('Identical'),
 };
-const ACTION_LABEL = { skip: 'Skip', upload: 'Upload →', download: '← Download', delete_remote: 'Delete on server', delete_local: 'Delete local' };
+const ACTION_LABEL = { skip: t('Skip'), upload: t('Upload →'), download: t('← Download'), delete_remote: t('Delete on server'), delete_local: t('Delete local') };
 
 function defaultAction(status, dir, mirror) {
   if (status === 'same') return 'skip';
@@ -2112,21 +2229,21 @@ function allowedActions(status) {
 }
 
 function openCompare() {
-  if (!S.status.connected) return toast('Connect to a server first', 'error');
+  if (!S.status.connected) return toast(t('Connect to a server first'), 'error');
   let data = null;
   const body = `
     <div class="row">
-      <label class="field">Local folder<span class="with-btn"><input id="cmpLocal" value="${esc(PL.path)}"><button type="button" data-pick="folder">Browse…</button></span></label>
-      <label class="field">Server folder<span class="with-btn"><input id="cmpRemote" value="${esc(PR.path)}"><button type="button" data-current="remote" title="Use the folder that is open in the server pane">Use current</button></span></label>
+      <label class="field">${esc(t('Local folder'))}<span class="with-btn"><input id="cmpLocal" value="${esc(PL.path)}"><button type="button" data-pick="folder">${esc(t('Browse…'))}</button></span></label>
+      <label class="field">${esc(t('Server folder'))}<span class="with-btn"><input id="cmpRemote" value="${esc(PR.path)}"><button type="button" data-current="remote" title="${esc(t('Use the folder that is open in the server pane'))}">${esc(t('Use current'))}</button></span></label>
     </div>
     <div class="row">
-      <label class="field">Ignore (comma separated, wildcards allowed)<input id="cmpIgnore" value="${esc(store.get('ignore', S.ignore.join(', ')))}"></label>
-      <button id="cmpRun" class="primary" style="margin-top:8px">Compare</button>
+      <label class="field">${esc(t('Ignore (comma separated, wildcards allowed)'))}<input id="cmpIgnore" value="${esc(store.get('ignore', S.ignore.join(', ')))}"></label>
+      <button id="cmpRun" class="primary" style="margin-top:8px">${esc(t('Compare'))}</button>
     </div>
-    <div id="cmpOut"><p class="muted">Compares every file in both folders (including subfolders) by size and modification time.</p></div>`;
+    <div id="cmpOut"><p class="muted">${esc(t('Compares every file in both folders (including subfolders) by size and modification time.'))}</p></div>`;
   modal({
-    title: 'Compare & sync', body, size: 'wide',
-    buttons: [{ label: 'Close', value: null }, { label: 'Run sync', id: 'cmpSync', primary: true, onClick: el => runSync(el) }],
+    title: t('Compare & sync'), body, size: 'wide',
+    buttons: [{ label: t('Close'), value: null }, { label: t('Run sync'), id: 'cmpSync', primary: true, onClick: el => runSync(el) }],
     onOpen(el) {
       $('#cmpSync', el).disabled = true;
       $('#cmpRun', el).onclick = () => runCompare(el);
@@ -2136,12 +2253,12 @@ function openCompare() {
   async function runCompare(el) {
     const ignore = $('#cmpIgnore', el).value;
     store.set('ignore', ignore);
-    $('#cmpOut', el).innerHTML = '<p class="muted">Scanning both folders… (see the queue for progress)</p>';
+    $('#cmpOut', el).innerHTML = `<p class="muted">${esc(t('Scanning both folders… (see the queue for progress)'))}</p>`;
     $('#cmpSync', el).disabled = true;
     try {
       const r = await api('compare', { local: $('#cmpLocal', el).value.trim(), remote: $('#cmpRemote', el).value.trim(), ignore });
       watchJob(r.job_id, job => {
-        if (job.status !== 'done') { $('#cmpOut', el).innerHTML = `<div class="info-box err">${esc(job.error || 'Cancelled')}</div>`; return; }
+        if (job.status !== 'done') { $('#cmpOut', el).innerHTML = `<div class="info-box err">${esc(job.error || t('Cancelled'))}</div>`; return; }
         data = job.result;
         data.dir = store.get('syncDir', 'up');
         data.mirror = false;
@@ -2157,47 +2274,47 @@ function openCompare() {
     const out = $('#cmpOut', el);
     const c = data.counts;
     const chips = Object.keys(STATUS_LABEL).filter(k => c[k]).map(k =>
-      `<span class="chip ${data.sel.has(k) ? 'on' : ''}" data-st="${k}" title="${data.sel.has(k) ? 'Click to untick these files' : `Click to tick all ${c[k]} file(s): ${STATUS_LABEL[k].toLowerCase()}`}"><span class="st st-${k}">${STATUS_LABEL[k]}</span> ${c[k]}</span>`).join('');
+      `<span class="chip ${data.sel.has(k) ? 'on' : ''}" data-st="${k}" title="${esc(data.sel.has(k) ? t('Click to untick these files') : t('Click to tick all {n} file(s): {kind}', { n: c[k], kind: STATUS_LABEL[k].toLowerCase() }))}"><span class="st st-${k}">${esc(STATUS_LABEL[k])}</span> ${c[k]}</span>`).join('');
     const rows = data.sel.size ? data.rows.filter(r => data.sel.has(r.status)) : data.rows.filter(r => !data.hidden.has(r.status));
     const ticked = data.rows.filter(r => r.action !== 'skip');
     const canUp = ticked.filter(r => allowedActions(r.status).includes('upload')).length;
     const canDown = ticked.filter(r => allowedActions(r.status).includes('download')).length;
     out.innerHTML = `
       <div class="cmp-controls">
-        <label class="inline">Direction
+        <label class="inline">${esc(t('Direction'))}
           <select id="cmpDir">
-            <option value="up">Local → Server (upload changes)</option>
-            <option value="down">Server → Local (download changes)</option>
-            <option value="both">Both ways (newest wins)</option>
+            <option value="up">${esc(t('Local → Server (upload changes)'))}</option>
+            <option value="down">${esc(t('Server → Local (download changes)'))}</option>
+            <option value="both">${esc(t('Both ways (newest wins)'))}</option>
           </select></label>
-        <label class="check" style="margin:0" title="Make the destination an exact copy: files that only exist there are deleted, and newer files there are overwritten.">
-          <input type="checkbox" id="cmpMirror" ${data.mirror ? 'checked' : ''} ${data.dir === 'both' ? 'disabled' : ''}> Mirror (delete extra files)</label>
+        <label class="check" style="margin:0" title="${esc(t('Make the destination an exact copy: files that only exist there are deleted, and newer files there are overwritten.'))}">
+          <input type="checkbox" id="cmpMirror" ${data.mirror ? 'checked' : ''} ${data.dir === 'both' ? 'disabled' : ''}> ${esc(t('Mirror (delete extra files)'))}</label>
         <div class="spacer"></div>
-        <div class="chips">${chips || '<span class="muted">No files found</span>'}</div>
+        <div class="chips">${chips || `<span class="muted">${esc(t('No files found'))}</span>`}</div>
       </div>
       ${ticked.length ? `<div class="cmp-quick">
-        <span class="muted">${ticked.length} file(s) ticked${data.sel.size ? ` · showing ${[...data.sel].map(k => STATUS_LABEL[k].toLowerCase()).join(', ')} (click the label again to untick)` : ''}</span>
+        <span class="muted">${esc(t('{n} file(s) ticked', { n: ticked.length }))}${data.sel.size ? ' · ' + esc(t('showing {kinds} (click the label again to untick)', { kinds: [...data.sel].map(k => STATUS_LABEL[k].toLowerCase()).join(', ') })) : ''}</span>
         <div class="spacer"></div>
-        <button type="button" id="cmpUp" ${canUp ? '' : 'disabled'}>Upload checked (${canUp}) →</button>
-        <button type="button" id="cmpDown" ${canDown ? '' : 'disabled'}>← Download checked (${canDown})</button>
+        <button type="button" id="cmpUp" ${canUp ? '' : 'disabled'}>${esc(t('Upload checked ({n}) →', { n: canUp }))}</button>
+        <button type="button" id="cmpDown" ${canDown ? '' : 'disabled'}>${esc(t('← Download checked ({n})', { n: canDown }))}</button>
       </div>` : ''}
       ${rows.length ? `<div class="cmp-wrap"><table class="cmp-table">
-        <thead><tr><th style="width:30px"></th><th>File</th><th style="width:110px">Status</th>
-          <th style="width:150px">Local</th><th style="width:150px">Server</th><th style="width:140px">Action</th></tr></thead>
+        <thead><tr><th style="width:30px"></th><th>${esc(t('File'))}</th><th style="width:150px">${esc(t('Status'))}</th>
+          <th style="width:150px">${esc(t('Local'))}</th><th style="width:150px">${esc(t('Server'))}</th><th style="width:140px">${esc(t('Action'))}</th></tr></thead>
         <tbody>${rows.map(r => {
           const i = data.rows.indexOf(r);
           return `<tr data-i="${i}">
             <td class="c-chk"><input type="checkbox" ${r.action !== 'skip' ? 'checked' : ''}></td>
             <td title="${esc(r.path)}">${esc(r.path)}</td>
-            <td><span class="st st-${r.status}">${STATUS_LABEL[r.status]}</span></td>
+            <td><span class="st st-${r.status}">${esc(STATUS_LABEL[r.status])}</span></td>
             <td class="muted">${r.local_size != null ? fmtSize(r.local_size) + ' · ' + fmtDate(r.local_mtime) : '—'}</td>
             <td class="muted">${r.remote_size != null ? fmtSize(r.remote_size) + ' · ' + fmtDate(r.remote_mtime) : '—'}</td>
-            <td><select>${allowedActions(r.status).map(a => `<option value="${a}" ${a === r.action ? 'selected' : ''}>${ACTION_LABEL[a]}</option>`).join('')}</select></td>
+            <td><select>${allowedActions(r.status).map(a => `<option value="${a}" ${a === r.action ? 'selected' : ''}>${esc(ACTION_LABEL[a])}</option>`).join('')}</select></td>
           </tr>`;
         }).join('')}</tbody></table></div>`
-        : `<div class="info-box">${!data.rows.length ? 'No files found.'
-            : data.rows.every(r => r.status === 'same') ? `All ${c.same} file(s) are identical – nothing to sync.`
-            : 'Nothing to show.'}</div>`}`;
+        : `<div class="info-box">${esc(!data.rows.length ? t('No files found.')
+            : data.rows.every(r => r.status === 'same') ? t('All {n} file(s) are identical – nothing to sync.', { n: c.same })
+            : t('Nothing to show.'))}</div>`}`;
     $('#cmpDir', out).value = data.dir;
     $('#cmpDir', out).onchange = e => {
       data.dir = e.target.value; store.set('syncDir', data.dir);
@@ -2246,7 +2363,7 @@ function openCompare() {
     const n = data.rows.filter(r => r.action !== 'skip').length;
     const btn = $('#cmpSync', el);
     btn.disabled = !n;
-    btn.textContent = n ? `Run sync (${n})` : 'Run sync';
+    btn.textContent = n ? t('Run sync ({n})', { n }) : t('Run sync');
   }
 
   async function runSync(el) {
@@ -2255,15 +2372,15 @@ function openCompare() {
     const dels = items.filter(r => r.action.startsWith('delete')).length;
     const counts = {};
     items.forEach(r => { counts[r.action] = (counts[r.action] || 0) + 1; });
-    const summary = Object.entries(counts).map(([a, n]) => `${n} × ${ACTION_LABEL[a]}`).join('<br>');
-    if (!await confirmBox('Run sync', `${summary}${dels ? '<br><br><b>Files deleted on the server cannot be recovered.</b> Local deletions go to the Trash.' : ''}`, 'Run sync', dels > 0)) return;
+    const summary = Object.entries(counts).map(([a, n]) => `${n} × ${esc(ACTION_LABEL[a])}`).join('<br>');
+    if (!await confirmBox(t('Run sync'), `${summary}${dels ? '<br><br>' + t('<b>Files deleted on the server cannot be recovered.</b> Local deletions go to the Trash.') : ''}`, t('Run sync'), dels > 0)) return;
     try {
       const r = await api('sync', { local_root: data.local_root, remote_root: data.remote_root, items });
       $('#cmpSync', el).disabled = true;
-      $('#cmpOut', el).innerHTML = '<p class="muted">Syncing… (see the queue for progress)</p>';
+      $('#cmpOut', el).innerHTML = `<p class="muted">${esc(t('Syncing… (see the queue for progress)'))}</p>`;
       watchJob(r.job_id, job => {
-        if (job.status === 'done') { toast(job.result?.message || 'Sync finished', 'ok'); runCompare(el); }
-        else $('#cmpOut', el).innerHTML = `<div class="info-box err">${esc(job.error || 'Cancelled')}</div>`;
+        if (job.status === 'done') { toast(job.result?.message || t('Sync finished'), 'ok'); runCompare(el); }
+        else $('#cmpOut', el).innerHTML = `<div class="info-box err">${esc(job.error || t('Cancelled'))}</div>`;
       });
     } catch (e) { toast(e.message, 'error'); }
   }
@@ -2277,36 +2394,36 @@ function openDeploy() {
   if (!cfg.remote_dir) cfg.remote_dir = PR.path || site?.remote_dir || '';
   const mode = cfg.zip_path ? 'file' : (cfg.zip_folder ? 'newest' : 'file');
   const body = `
-    <p class="muted" style="margin-top:0">Uploads a zip and unpacks it into a folder on the server, replacing existing files. Save the settings to the site and next time it's one click.</p>
-    <label class="check"><input type="radio" name="zmode" value="file" ${mode === 'file' ? 'checked' : ''}> A specific zip file</label>
-    <label class="field" data-z="file"><span class="with-btn"><input id="dZip" value="${esc(cfg.zip_path)}" placeholder="~/Downloads/update.zip"><button type="button" data-pick="file" data-types="zip">Browse…</button></span></label>
-    <label class="check"><input type="radio" name="zmode" value="newest" ${mode === 'newest' ? 'checked' : ''}> The newest zip in a folder</label>
+    <p class="muted" style="margin-top:0">${esc(t("Uploads a zip and unpacks it into a folder on the server, replacing existing files. Save the settings to the site and next time it's one click."))}</p>
+    <label class="check"><input type="radio" name="zmode" value="file" ${mode === 'file' ? 'checked' : ''}> ${esc(t('A specific zip file'))}</label>
+    <label class="field" data-z="file"><span class="with-btn"><input id="dZip" value="${esc(cfg.zip_path)}" placeholder="~/Downloads/update.zip"><button type="button" data-pick="file" data-types="zip">${esc(t('Browse…'))}</button></span></label>
+    <label class="check"><input type="radio" name="zmode" value="newest" ${mode === 'newest' ? 'checked' : ''}> ${esc(t('The newest zip in a folder'))}</label>
     <div class="row" data-z="newest">
-      <label class="field" style="flex:3">Folder<span class="with-btn"><input id="dFolder" value="${esc(cfg.zip_folder)}" placeholder="~/Projects"><button type="button" data-pick="folder">Browse…</button></span></label>
-      <label class="field" style="flex:2">File name pattern<input id="dPattern" value="${esc(cfg.zip_pattern)}" placeholder="site-update_*.zip"></label>
+      <label class="field" style="flex:3">${esc(t('Folder'))}<span class="with-btn"><input id="dFolder" value="${esc(cfg.zip_folder)}" placeholder="~/Projects"><button type="button" data-pick="folder">${esc(t('Browse…'))}</button></span></label>
+      <label class="field" style="flex:2">${esc(t('File name pattern'))}<input id="dPattern" value="${esc(cfg.zip_pattern)}" placeholder="site-update_*.zip"></label>
     </div>
-    <label class="field">Server folder to deploy to<span class="with-btn"><input id="dRemote" value="${esc(cfg.remote_dir)}"><button type="button" data-current="remote" title="Use the folder that is open in the server pane">Use current</button></span></label>
+    <label class="field">${esc(t('Server folder to deploy to'))}<span class="with-btn"><input id="dRemote" value="${esc(cfg.remote_dir)}"><button type="button" data-current="remote" title="${esc(t('Use the folder that is open in the server pane'))}">${esc(t('Use current'))}</button></span></label>
     <div class="row">
-      <label class="field">Unpack method
+      <label class="field">${esc(t('Unpack method'))}
         <select id="dMethod">
-          <option value="auto">Automatic (on server if possible)</option>
-          <option value="server">On the server (fast, needs SSH + unzip)</option>
-          <option value="local">Unpack locally, upload files</option>
+          <option value="auto">${esc(t('Automatic (on server if possible)'))}</option>
+          <option value="server">${esc(t('On the server (fast, needs SSH + unzip)'))}</option>
+          <option value="local">${esc(t('Unpack locally, upload files'))}</option>
         </select></label>
     </div>
-    <label class="check"><input type="checkbox" id="dBackup" ${cfg.backup ? 'checked' : ''}> Make a backup of the server folder first</label>
-    <label class="check"><input type="checkbox" id="dStrip" ${cfg.strip ? 'checked' : ''}> If the zip contains a single top folder, deploy its contents</label>
+    <label class="check"><input type="checkbox" id="dBackup" ${cfg.backup ? 'checked' : ''}> ${esc(t('Make a backup of the server folder first'))}</label>
+    <label class="check"><input type="checkbox" id="dStrip" ${cfg.strip ? 'checked' : ''}> ${esc(t('If the zip contains a single top folder, deploy its contents'))}</label>
     <div id="dInfo"></div>`;
   modal({
-    title: `Deploy${site ? ' – ' + site.name : ''}`, body, size: 'mid',
+    title: site ? t('Deploy – {site}', { site: site.name }) : t('Deploy'), body, size: 'mid',
     buttons: [
-      { label: 'Save to site', left: true, onClick: async el => {
-        if (!site) return toast('Create a site first', 'error');
+      { label: t('Save to site'), left: true, onClick: async el => {
+        if (!site) return toast(t('Create a site first'), 'error');
         const r = await api('site_update', { id: site.id, patch: { deploy: read(el) } });
-        S.sites = r.sites; toast('Deploy settings saved', 'ok');
+        S.sites = r.sites; toast(t('Deploy settings saved'), 'ok');
       } },
-      { label: 'Close', value: null },
-      { label: 'Deploy now', primary: true, onClick: (el, close) => go(el, close) },
+      { label: t('Close'), value: null },
+      { label: t('Deploy now'), primary: true, onClick: (el, close) => go(el, close) },
     ],
     onOpen(el) {
       $('#dMethod', el).value = cfg.method;
@@ -2339,24 +2456,25 @@ function openDeploy() {
     if (!c.zip_path && !c.zip_folder) { box.innerHTML = ''; return null; }
     try {
       const { info } = await api('deploy_preview', { cfg: c });
-      box.innerHTML = `<div class="info-box"><b>${esc(info.name)}</b> · ${fmtSize(info.size)} · ${fmtDate(info.mtime)} · ${info.files} files
-        ${info.top_folder ? `<br>Top folder: <span class="mono">${esc(info.top_folder)}/</span>${c.strip ? ' (its contents will be deployed)' : ''}` : ''}
+      box.innerHTML = `<div class="info-box"><b>${esc(info.name)}</b> · ${fmtSize(info.size)} · ${fmtDate(info.mtime)} · ${esc(nFiles(info.files))}
+        ${info.top_folder ? `<br>${esc(t('Top folder:'))} <span class="mono">${esc(info.top_folder)}/</span>${c.strip ? ' ' + esc(t('(its contents will be deployed)')) : ''}` : ''}
         <div class="mono muted" style="margin-top:6px">${info.sample.map(esc).join('<br>')}${info.files > info.sample.length ? '<br>…' : ''}</div></div>`;
       return info;
     } catch (e) { box.innerHTML = `<div class="info-box err">${esc(e.message)}</div>`; return null; }
   }
   async function go(el, close) {
-    if (!S.status.connected) return toast('Connect to a server first', 'error');
+    if (!S.status.connected) return toast(t('Connect to a server first'), 'error');
     const c = read(el);
     const info = await preview(el);
     if (!info) return;
-    if (!c.remote_dir) return toast('Fill in the server folder', 'error');
-    if (!await confirmBox('Deploy', `Deploy <b>${esc(info.name)}</b> (${info.files} files) to<br><span class="mono">${esc(S.status.label)}:${esc(c.remote_dir)}</span>?<br><br>Existing files with the same name are overwritten.${c.backup ? ' A backup is made first.' : ' <b>No backup will be made.</b>'}`, 'Deploy')) return;
+    if (!c.remote_dir) return toast(t('Fill in the server folder'), 'error');
+    if (!await confirmBox(t('Deploy'), t('Deploy <b>{name}</b> ({n} files) to', { name: esc(info.name), n: info.files }) + `<br><span class="mono">${esc(S.status.label)}:${esc(c.remote_dir)}</span>?<br><br>`
+      + esc(t('Existing files with the same name are overwritten.')) + ' ' + (c.backup ? esc(t('A backup is made first.')) : `<b>${esc(t('No backup will be made.'))}</b>`), t('Deploy'))) return;
     try {
       const r = await api('deploy', { cfg: c });
       close('ok');
       watchJob(r.job_id, job => {
-        if (job.status === 'done') showResult('Deploy finished', job.result?.message || 'Done');
+        if (job.status === 'done') showResult(t('Deploy finished'), job.result?.message || t('Done'));
       });
     } catch (e) { toast(e.message, 'error'); }
   }
@@ -2366,15 +2484,15 @@ $('#btnDeploy').onclick = openDeploy;
 /* ---------------------------------------------------------------- plugins */
 async function runPlugin(p, pane) {
   pane = p.side === 'local' ? PL : p.side === 'remote' ? PR : (pane || S.active || PL);
-  if ((p.side === 'remote' || pane.remote) && !S.status.connected) return toast('Connect to a server first', 'error');
+  if ((p.side === 'remote' || pane.remote) && !S.status.connected) return toast(t('Connect to a server first'), 'error');
   const paths = pane.selectedPaths();
-  if (p.needs_selection && !paths.length) return toast('Select one or more items first');
+  if (p.needs_selection && !paths.length) return toast(t('Select one or more items first'));
   let input = null;
   if (p.ask) {
     input = await askText(p.label, p.ask, p.default || '');
     if (input === null) return;
   }
-  if (p.confirm && !await confirmBox(p.label, esc(p.confirm), 'Run')) return;
+  if (p.confirm && !await confirmBox(p.label, esc(p.confirm), t('Run'))) return;
   try {
     const r = await api('plugin_run', { id: p.id, side: pane.side, cwd: pane.path, paths, input });
     watchJob(r.job_id, job => {
@@ -2391,16 +2509,16 @@ $('#btnPlugins').onclick = e => {
   for (const p of S.plugins) (groups[p.plugin] ||= []).push(p);
   for (const [g, list] of Object.entries(groups)) {
     items.push({ header: g });
-    for (const p of list) items.push({ label: p.label, hint: p.side === 'any' ? '' : p.side, action: () => runPlugin(p) });
+    for (const p of list) items.push({ label: p.label, hint: p.side === 'any' ? '' : p.side === 'local' ? t('local') : t('server'), action: () => runPlugin(p) });
   }
-  if (!S.plugins.length) items.push({ header: 'No plugins installed' });
+  if (!S.plugins.length) items.push({ header: t('No plugins installed') });
   items.push({ sep: true },
-    { label: 'Reload plugins', action: async () => {
+    { label: t('Reload plugins'), action: async () => {
       const r2 = await api('plugins_reload');
       S.plugins = r2.plugins;
-      r2.errors.length ? toast('Plugin errors: ' + r2.errors.join('; '), 'error') : toast(`${S.plugins.length} plugin action(s) loaded`, 'ok');
+      r2.errors.length ? toast(t('Plugin errors: {errors}', { errors: r2.errors.join('; ') }), 'error') : toast(t('{n} plugin action(s) loaded', { n: S.plugins.length }), 'ok');
     } },
-    { label: 'Open plugins folder', action: () => api('reveal', {}) });
+    { label: t('Open plugins folder'), action: () => api('reveal', {}) });
   showMenu(r.left, r.bottom + 4, items);
 };
 
@@ -2411,12 +2529,28 @@ setActive(PL);
 
 try { $('#year').textContent = new Date().getFullYear(); } catch { /* ignore */ }
 
+// language buttons in the top bar (like Eben Email)
+$$('#langs [data-lang]').forEach(b => {
+  b.classList.toggle('on', b.dataset.lang === LANG);
+  b.onclick = async () => {
+    if (b.dataset.lang === LANG) return;
+    try { await api('settings_save', { settings: { language: b.dataset.lang } }); } catch { /* the language also works from local storage */ }
+    store.set('lang', b.dataset.lang);
+    location.reload();
+  };
+});
+
 (async function init() {
   const r = await api('init');
   S.sites = r.sites;
   S.folders = r.folders || [];
   S.platform = r.platform || {};
   S.settings = r.settings || {};
+  if (S.settings.language && resolveLang(S.settings.language) !== LANG) {  // the language setting changed since the last start
+    store.set('lang', S.settings.language);
+    location.reload();
+    return;
+  }
   $('#appVersion').textContent = 'v' + r.version;
   checkUpdate();
   setInterval(checkUpdate, 4 * 3600 * 1000);  // also while the app stays open for days

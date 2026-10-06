@@ -6,6 +6,7 @@ import os
 import uuid
 
 from .common import CONF_DIR, ApiError
+from .i18n import tr
 
 try:
     import keyring
@@ -68,38 +69,38 @@ class SiteStore:
         for s in self.sites:
             if s['id'] == site_id:
                 return s
-        raise ApiError('Site not found')
+        raise ApiError(tr('Site not found'))
 
     def clean(self, site):
         """Validate a site and return only known fields (raises ApiError)."""
         c = {k: site.get(k) for k in FIELDS if k in site}
         for k in ('name', 'host', 'username', 'folder', 'key_path', 'local_dir', 'remote_dir', 'comments', 'charset'):
             c[k] = (c.get(k) or '').strip() if k != 'comments' else (c.get(k) or '')
-        label = f'"{c["name"]}"' if c['name'] else 'a site'
+        label = f'"{c["name"]}"' if c['name'] else tr('a site')
         if not c['name']:
-            raise ApiError('Every site needs a name')
+            raise ApiError(tr('Every site needs a name'))
         c['protocol'] = c.get('protocol') if c.get('protocol') in PROTOCOLS else 'sftp'
         c['encryption'] = c.get('encryption') if c.get('encryption') in ENCRYPTIONS else 'auto'
         if c.get('auth') not in AUTHS[c['protocol']]:
             c['auth'] = 'password'
         if not c['host']:
-            raise ApiError(f'Please fill in the host for {label}')
+            raise ApiError(tr('Please fill in the host for {site}', site=label))
         if not c['username'] and c['auth'] != 'anonymous':
-            raise ApiError(f'Please fill in the user for {label}')
+            raise ApiError(tr('Please fill in the user for {site}', site=label))
         try:
             c['port'] = int(c.get('port') or default_port(c))
             assert 0 < c['port'] < 65536
         except (ValueError, AssertionError):
-            raise ApiError(f'The port of {label} must be a number between 1 and 65535')
+            raise ApiError(tr('The port of {site} must be a number between 1 and 65535', site=label))
         if c['auth'] == 'key' and not c['key_path']:
-            raise ApiError(f'Choose a key file for {label}')
+            raise ApiError(tr('Choose a key file for {site}', site=label))
         c['color'] = c.get('color') if c.get('color') in COLORS else ''
         c['transfer_mode'] = c.get('transfer_mode') if c.get('transfer_mode') in ('default', 'active', 'passive') else 'default'
         if c['charset'] not in ('', 'auto', 'utf-8'):
             try:
                 codecs.lookup(c['charset'])
             except LookupError:
-                raise ApiError(f'Unknown character set "{c["charset"]}" for {label}')
+                raise ApiError(tr('Unknown character set "{charset}" for {site}', charset=c['charset'], site=label))
         c['charset'] = c['charset'] or 'auto'
         c['ftps_insecure'] = bool(c.get('ftps_insecure'))
         c['fallback_sftp'] = bool(c.get('fallback_sftp')) and c['protocol'] == 'ftp'
@@ -108,14 +109,14 @@ class SiteStore:
             c['fallback_port'] = int(c.get('fallback_port') or 22)
             assert 0 < c['fallback_port'] < 65536
         except (ValueError, AssertionError):
-            raise ApiError(f'The SFTP fallback port of {label} must be a number between 1 and 65535')
+            raise ApiError(tr('The SFTP fallback port of {site} must be a number between 1 and 65535', site=label))
         c['upload_perms'] = bool(c.get('upload_perms'))
         from .webinfo import clean_web_map
         c['web_map'] = clean_web_map(c.get('web_map') or [])
         try:
             c['max_connections'] = max(1, min(10, int(c.get('max_connections') or 3)))
         except (TypeError, ValueError):
-            raise ApiError(f'Simultaneous transfers for {label} must be a number from 1 to 10')
+            raise ApiError(tr('Simultaneous transfers for {site} must be a number from 1 to 10', site=label))
         for k, what in (('upload_dir_mode', 'folders'), ('upload_file_mode', 'files')):
             v = str(c.get(k) or '').strip()
             if v:
@@ -123,7 +124,7 @@ class SiteStore:
                     n = int(v, 8)
                     assert 0 <= n <= 0o7777
                 except (ValueError, AssertionError):
-                    raise ApiError(f'The upload permission for {what} of {label} must be octal, e.g. 755 or 644')
+                    raise ApiError(tr('The upload permission for {what} of {site} must be octal, e.g. 755 or 644', what=tr(what), site=label))
                 v = f'{n:04o}'
             c[k] = v
         c.setdefault('bookmarks', [])

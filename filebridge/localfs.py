@@ -5,6 +5,7 @@ import stat
 
 from . import system
 from .common import ApiError, make_entry
+from .i18n import tr
 
 
 def norm(path):
@@ -14,7 +15,7 @@ def norm(path):
 def list_dir(path):
     path = norm(path)
     if not os.path.isdir(path):
-        raise ApiError(f'Folder not found: {path}')
+        raise ApiError(tr('Folder not found: {path}', path=path))
     entries = []
     try:
         it = os.scandir(path)
@@ -46,21 +47,21 @@ def mkdir(path):
 def rename(src, dst):
     src, dst = norm(src), norm(dst)
     if os.path.exists(dst):
-        raise ApiError(f'"{os.path.basename(dst)}" already exists')
+        raise ApiError(tr('"{name}" already exists', name=os.path.basename(dst)))
     os.rename(src, dst)
 
 
 def move(paths, dest):
     dest = norm(dest)
     if not os.path.isdir(dest):
-        raise ApiError(f'Folder not found: {dest}')
+        raise ApiError(tr('Folder not found: {path}', path=dest))
     for p in paths:
         p = norm(p)
         target = os.path.join(dest, os.path.basename(p))
         if dest == p or dest.startswith(p + os.sep):
-            raise ApiError(f'Cannot move "{os.path.basename(p)}" into itself')
+            raise ApiError(tr('Cannot move "{name}" into itself', name=os.path.basename(p)))
         if os.path.exists(target):
-            raise ApiError(f'"{os.path.basename(p)}" already exists in {dest}')
+            raise ApiError(tr('"{name}" already exists in {dest}', name=os.path.basename(p), dest=dest))
         shutil.move(p, target)
 
 

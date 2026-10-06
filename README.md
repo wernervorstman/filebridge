@@ -28,6 +28,9 @@ keychain. BUILD.md lists all locations.
 
 | | |
 |---|---|
+| **Languages** | English, Dutch and Spanish. Switch with the flags at the top right, or in Settings → General (*Automatic* follows the language of your computer). Messages from FileBridge itself are translated too; replies from servers are shown as they are. |
+| **User manual** | A manual with pictures in all three languages: **Manual** at the bottom of the window, or Settings → **User manual**. It has a search box and a table of contents, and shows only what applies to your computer (macOS, Windows or Linux). |
+| **Settings** | The gear at the top right opens Settings, with tabs on the left: General (language, updates), Filters, Transfers (speed limits), View/Edit and User manual. |
 | **Two panes** | Local on the left, server on the right, with a queue and log at the bottom. |
 | **Transfer** | Use the Upload/Download buttons, double-click a file, or drag between the panes. Drop onto a folder to put the files inside it. When a transfer finishes you get a summary, e.g. *3 uploaded, 5 skipped (already on the server)*. |
 | **Opening folders** | **One click** opens a folder (and `..` goes up). To *select* a folder, tick its checkbox. Double-clicking out of habit is safe: the second click is ignored. |
@@ -37,14 +40,14 @@ keychain. BUILD.md lists all locations.
 | **Import from FileZilla** | Site Manager → **Import from FileZilla…** reads FileZilla's `sitemanager.xml` and takes over the sites and their folders, protocol, encryption, logon type, colour, transfer mode, charset and default folders. Passwords go straight into the system keychain. Passwords protected with a FileZilla master password can't be read; you type them once when connecting. |
 | **View/Edit** | Right-click a server file → **View/Edit** opens it in your editor (Settings → View/Edit; default: the system's text editor). When you save it, FileBridge asks whether to upload it, or does so automatically if you choose *Always*. The **Edited files** tab lists the files being watched. For local files: **Open** (default app) and **Edit** (editor). |
 | **Drag from Finder / Explorer** | In the app window, drag files or folders from Finder or Explorer onto the server list to upload them (onto a folder row: into that folder). |
-| **Synchronized browsing** | **⇄ Sync browsing** links both sides: open a subfolder on one side and the same subfolder opens on the other. It switches off when a folder doesn't exist on the other side. |
+| **Synchronized browsing** | The **⇄** button at the top links both sides: open a subfolder on one side and the same subfolder opens on the other. It switches off when a folder doesn't exist on the other side. |
 | **Folder tree** | The tree button in each pane shows a folder tree next to the list. It opens to the current folder, and subfolders load when you expand them. |
-| **Filters** | Settings → **Filename filters**: names like `.DS_Store`, `.git` and `node_modules` (wildcards allowed) are hidden in the lists and never uploaded or downloaded. The footer shows how many items were filtered. |
-| **Speed limits** | Settings → **Speed limits**: maximum upload and download speed in KB/s (0 = unlimited). |
+| **Filters** | Settings → **Filters**: names like `.DS_Store`, `.git` and `node_modules` (wildcards allowed) are hidden in the lists and never uploaded or downloaded. The footer shows how many items were filtered. |
+| **Speed limits** | Settings → **Transfers**: maximum upload and download speed in KB/s (0 = unlimited). |
 | **Failed files** | If some files fail, the others are still transferred. The queue shows **Retry N** to try just the failed files again. |
 | **Public web folders** | When you upload to a public web folder (`public_html`, `www`, `htdocs`, … or a folder with a web address, see below), FileBridge checks for files that shouldn't be downloadable by anyone: archives (`.zip`, `.tar.gz`, …), database dumps (`.sql`), backups (`.bak`, `.old`), `.env` files and keys. You choose **Skip these files**, **Upload anyway** or **Cancel**. Such files already on the server get a red **⚠ public** label, and **Extract here** in a public folder deletes the zip afterwards by default. |
 | **Web addresses** | Site Manager → Advanced → **Web addresses**, one per line: `/public_html = https://example.com`. Right-click a server file or folder → **Open in browser** or **Copy URL**. Subfolders follow automatically; add a line for a subfolder with its own address. |
-| **Updates** | FileBridge checks GitHub for a newer version at startup and every few hours while it stays open. For a new version it shows a notice once with what is new, and **Update available** stays in the footer (click to open the download page). Download the new version and replace the app; your sites and passwords are kept. Turn the check off in Settings → Updates. The footer also shows your version; all changes are listed in [CHANGELOG.md](CHANGELOG.md). |
+| **Updates** | FileBridge checks GitHub for a newer version at startup and every few hours while it stays open. For a new version it shows a notice once with what is new, and **Update available** stays in the footer (click to open the download page). Download the new version and replace the app; your sites and passwords are kept. Turn the check off in Settings → General. The footer also shows your version; all changes are listed in [CHANGELOG.md](CHANGELOG.md). |
 | **Quit** | The **power button** (⏻) at the far right of the top bar closes FileBridge: the app window closes, or in browser mode the server stops. If transfers are still running or edited files have changes that are not uploaded yet, FileBridge asks first. |
 | **If a file exists** | Bottom right. **Skip if exists** (default) never touches files that are already there, including inside subfolders, so only new files are uploaded. **Overwrite if newer** replaces a file only when yours is newer or a different size. **Overwrite** always replaces. **Skip if same size** and **Resume** are also available. |
 | **Select new ▾** | Compares the current folder with the folder open on the other side. *Not on the server* selects what is missing there, *Not on the server + changed here* also selects files that differ, and *Changed here only* selects just the changed files. Then click Upload (or Download on the server side). **Highlight differences** colors the lists: green = not on the other side, orange = changed. Folders that exist on both sides are compared by name only; *Skip if exists* takes care of what's inside them. |
@@ -130,11 +133,28 @@ filebridge/deploy.py   zip deploy
 filebridge/plugins.py  plugin loader
 filebridge/sites.py    site manager + keychain
 filebridge/system.py   macOS / Windows / Linux differences (paths, picker, trash)
+filebridge/diagnose.py Test connection + hosting panel detection
+filebridge/i18n*.py    server messages in English, Dutch (i18n_nl) and Spanish (i18n_es)
 filebridge_app.py      desktop app: the same interface in its own window (pywebview)
 build/filebridge.spec  PyInstaller recipe (see BUILD.md)
 static/                interface (HTML/CSS/JS, no build step)
+static/i18n*.js        interface texts: t('English text') + Dutch and Spanish dictionaries
+static/manual/         user manual (en/nl/es.html) and its pictures (img/<language>/)
+tools/manual_shots.py  makes the manual pictures (macOS, off screen, with example data)
+tests/fake_sftp.py     a small local SFTP server for tests and the manual pictures
 plugins/               your extensions
 ```
+
+### Translations and the manual
+
+Every text in the interface goes through `t('English text')`; the Dutch and Spanish translations are in
+`static/i18n-nl.js` and `static/i18n-es.js` (the English text is the key, `{name}` placeholders are filled in).
+Messages from the server use `tr()` in `filebridge/i18n.py` the same way, with `i18n_nl.py` and `i18n_es.py`.
+Add a new text to both dictionaries.
+
+When a feature changes, update `static/manual/en.html`, `nl.html` and `es.html`, and run
+`.venv/bin/python tools/manual_shots.py` to make the pictures again. It starts FileBridge with a throwaway home
+folder, made-up example files and a local test SFTP server, so the pictures never show real servers.
 
 ## Verifying a download
 

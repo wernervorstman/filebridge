@@ -7,6 +7,7 @@ import stat
 
 from . import localfs
 from . import remote as R
+from .i18n import tr
 
 
 def new_mode(old, set_bits, clear_bits):
@@ -52,7 +53,7 @@ def _collect(job, side, sftp, paths, recursive):
 
 def chmod_job(job, side, sftp, paths, set_bits, clear_bits, recursive, apply_to, only_if):
     job.unit = 'items'
-    job.current = 'scanning…'
+    job.current = tr('scanning…')
     items = _collect(job, side, sftp, paths, recursive)
     job.total = len(items)
     changed = unchanged = filtered = unknown = 0
@@ -82,14 +83,14 @@ def chmod_job(job, side, sftp, paths, set_bits, clear_bits, recursive, apply_to,
         else:
             os.chmod(path, target)
         changed += 1
-    msg = f'Permissions changed on {changed} item(s)'
+    msg = tr('Permissions changed on {n} item(s)', n=changed)
     extra = []
     if unchanged:
-        extra.append(f'{unchanged} already correct')
+        extra.append(tr('{n} already correct', n=unchanged))
     if filtered:
-        extra.append(f'{filtered} skipped by your filter')
+        extra.append(tr('{n} skipped by your filter', n=filtered))
     if unknown:
-        extra.append(f'{unknown} skipped because the server does not report their current permissions')
+        extra.append(tr('{n} skipped because the server does not report their current permissions', n=unknown))
     if extra:
         msg += f' ({", ".join(extra)})'
     job.log(msg)

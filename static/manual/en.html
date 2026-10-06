@@ -1,0 +1,227 @@
+<!-- FileBridge user manual (English). Update with every new feature, also nl.html and es.html,
+     and make new pictures with tools/manual_shots.py. -->
+<section id="start">
+  <h2>Getting started</h2>
+  <p>FileBridge copies files between your computer and a web server. Your computer is on the <b>left</b>, the server
+    on the <b>right</b>, and at the bottom you see the <b>Queue</b> with everything that is being transferred.</p>
+  <figure><img data-shot="overview" alt=""><figcaption>FileBridge connected to a server.</figcaption></figure>
+  <ol>
+    <li>Click <b>Site Manager</b> at the top and then <b>New site</b>.</li>
+    <li>Fill in the details from your hosting provider: <b>Protocol</b>, <b>Host</b>, <b>User</b> and <b>Password</b>
+      (see <a href="#sites">Saving your sites</a>).</li>
+    <li>Click <b>Connect</b>. The server's folders appear on the right.</li>
+    <li>Tick the files you want on one side and click <b>Upload →</b> or <b>← Download</b>.</li>
+  </ol>
+  <p class="tip">Just trying something once? Use <b>Quickconnect</b> at the top: type the host, user and password,
+    and nothing is saved.</p>
+</section>
+
+<section id="sites">
+  <h2>Saving your sites</h2>
+  <p>The <b>Site Manager</b> keeps all your servers, in folders if you like. It works like the one in FileZilla.</p>
+  <figure><img data-shot="sitemanager" alt=""><figcaption>The Site Manager.</figcaption></figure>
+  <ul>
+    <li><b>Protocol:</b> <b>SFTP</b> (via SSH, recommended) or <b>FTP</b>. For FTP choose <i>Use explicit FTP over TLS
+      if available</i>, so your password is sent encrypted.</li>
+    <li><b>Host</b> and <b>Port:</b> leave Port empty for the usual port (SFTP 22, FTP 21). Some providers use another
+      SSH port; they tell you which.</li>
+    <li><b>Logon Type:</b> <i>Normal</i> saves the password, <i>Ask for password</i> never saves it. For SFTP you can
+      also use a key file or the SSH agent.</li>
+    <li>Your password is kept in your computer's password store<span data-os="mac"> (the Keychain). When macOS asks
+      whether FileBridge may use it, type your Mac password and click <b>Always Allow</b></span><span data-os="win">
+      (Windows Credential Manager)</span><span data-os="linux"> (the keyring of your desktop)</span>, never in a file.</li>
+    <li><b>Background color:</b> the file lists get this tint while you are connected, so you always see which server
+      you are on.</li>
+    <li><b>Duplicate</b> copies a site with its password; drag a site onto a folder to move it.</li>
+    <li>Coming from FileZilla? <b>Import from FileZilla…</b> takes over all your sites, including their folders and
+      (when FileZilla has no master password) their passwords.</li>
+  </ul>
+  <h3>Which username?</h3>
+  <p>For FTP sites FileBridge recognises the hosting panel of the server and tells you under <b>User</b> what the
+    username looks like:</p>
+  <ul>
+    <li><b>Plesk</b> (for example Cloud86): just the account name from the panel, such as <code>ftp1</code> – without
+      <code>@domain</code>. If you typed <code>ftp1@domain.com</code>, a button <b>Use "ftp1"</b> fixes it.</li>
+    <li><b>DirectAdmin</b> and <b>cPanel</b>: extra FTP accounts are <code>name@domain</code>, such as
+      <code>ftp@example.com</code>; the main account is the plain username.</li>
+  </ul>
+</section>
+
+<section id="test">
+  <h2>Testing a connection</h2>
+  <p>Doesn't it connect? Click <b>Test connection</b> in the Site Manager. FileBridge tries the settings from the form
+    step by step and shows where it goes wrong: server name, port, type of server, encryption and login. Nothing is
+    saved.</p>
+  <figure><img data-shot="testconn" alt=""><figcaption>Every step gets a ✓ or ✗ with an explanation.</figcaption></figure>
+  <ul>
+    <li>Where it can, FileBridge offers a fix with one click, for example <b>Switch to SFTP</b> when you chose FTP on an
+      SSH port, or when FTP is blocked on your network but the SSH port is open.</li>
+    <li>When the server refuses the login, you see its own reply (such as <i>530 Login incorrect</i>), so you can tell a
+      wrong password from a blocked account.</li>
+  </ul>
+</section>
+
+<section id="blocked">
+  <h2>When FTP is blocked</h2>
+  <p>Public wifi, hotels and offices often block FTP (port 21). FileBridge then says <i>timed out</i> and explains
+    this. SFTP and websites usually still work.</p>
+  <figure><img data-shot="fallback" alt=""><figcaption>Site Manager → Advanced → When FTP is blocked.</figcaption></figure>
+  <p>In <b>Site Manager → Advanced</b>, tick <b>connect with SFTP instead</b> and fill in the SSH port and user from
+    your hosting provider. When the FTP server doesn't answer, FileBridge automatically connects to the same server with
+    SFTP, using the same password. SSH access must be switched on for your account.</p>
+</section>
+
+<section id="transfer">
+  <h2>Uploading and downloading</h2>
+  <ul>
+    <li><b>Tick</b> the files and folders you want (the box in front of each line), then click <b>Upload →</b> or
+      <b>← Download</b>. Shift + tick selects everything in between.</li>
+    <li>Clicking a file name selects nothing, so you never lose a selection by accident. <b>One click on a folder opens
+      it</b>; <code>..</code> goes up.</li>
+    <li><b>Double-click</b> a file to transfer just that file.</li>
+    <li><b>Drag</b> files between the two sides, onto a folder to put them inside it.<span data-os="mac win"> In the app
+      window you can also drag files from the <span data-os="mac">Finder</span><span data-os="win">Explorer</span> onto
+      the server list.</span></li>
+    <li><b>If file exists</b> (bottom right) decides what happens with files that are already there: <i>Skip if
+      exists</i> (the default, only new files go across), <i>Overwrite if newer</i>, <i>Overwrite</i>, <i>Skip if same
+      size</i> or <i>Resume</i>.</li>
+  </ul>
+  <figure><img data-shot="queue" alt=""><figcaption>The queue shows the progress and a summary when it's done.</figcaption></figure>
+  <p>When some files fail, the others are still transferred and the queue shows <b>Retry</b> for just the failed ones.
+    Several files go at the same time (3 by default; per site under <b>Transfer Settings</b>).</p>
+  <p class="tip">Uploading to a public web folder such as <code>public_html</code>? FileBridge warns you about files
+    that anyone could then download, such as zips, database dumps (<code>.sql</code>), backups and <code>.env</code>
+    files. Choose <b>Skip these files</b> or <b>Upload anyway</b>.</p>
+</section>
+
+<section id="select">
+  <h2>Selecting files</h2>
+  <figure><img data-shot="selecttype" alt=""><figcaption>Select type: only the chosen types are shown.</figcaption></figure>
+  <ul>
+    <li><b>Select type ▾</b> selects all files of a type, such as <code>.jpg</code>, and shows only those. Choose more
+      types to add them, choose a type again to remove it. At the bottom it says <i>Showing only …</i> with
+      <b>show all</b>.</li>
+    <li><b>Select permission ▾</b> selects everything with a certain permission, such as <code>0777</code>.</li>
+    <li><b>Select new ▾</b> compares the folder with the folder open on the other side and selects what is missing or
+      changed there. <b>Highlight differences</b> colours the lists: green is missing on the other side, orange is
+      changed.</li>
+    <li>⌘A selects everything, Esc clears the selection.</li>
+  </ul>
+</section>
+
+<section id="files">
+  <h2>Working with files</h2>
+  <ul>
+    <li><b>New folder</b>, <b>Rename</b> (F2), <b>Move to…</b> and <b>Delete</b> work on what you ticked. Deleting on
+      your computer moves files to the <span data-os="mac linux">Trash</span><span data-os="win">Recycle Bin</span>;
+      deleting on the server is permanent and asks first.</li>
+    <li><b>Right-click</b> a file for all actions, such as <b>View/Edit</b> (opens a server file in your editor and
+      uploads it again when you save), <b>Copy path</b>, <b>Open in browser</b> and <b>Copy URL</b>.</li>
+    <li>Fill in your web addresses in <b>Site Manager → Advanced → Web addresses</b>, for example
+      <code>/public_html = https://example.com</code>, to open files on the server in your browser.</li>
+    <li>The <b>⇄</b> button at the top (synchronized browsing) keeps both sides in the same subfolder. The tree button shows a folder tree next to the
+      list. The star button saves bookmarks: a local and a server folder you jump to at once.</li>
+    <li>Make a column wider by dragging the edge of its header; drag the bar above the queue to make it higher or
+      lower. Double-click to reset.</li>
+  </ul>
+</section>
+
+<section id="permissions">
+  <h2>Permissions</h2>
+  <p><b>Permissions</b> (or right-click → <b>Permissions…</b>) opens the same window as in FileZilla.</p>
+  <figure><img data-shot="permissions" alt=""><figcaption>Change the permissions of the ticked items.</figcaption></figure>
+  <ul>
+    <li>Tick Read, Write and Execute for Owner, Group and Public, or type a number such as <code>755</code> or a change
+      such as <code>u+x,go-w</code>.</li>
+    <li>When the ticked items differ, a box shows a dash: that permission stays as it is on every item.</li>
+    <li><b>Recurse into subdirectories</b> also changes everything inside folders, for all items, only files or only
+      folders. <b>Only change items that currently have</b> limits the change to, for example, everything that is now
+      <code>0777</code>.</li>
+    <li>In <b>Site Manager → Transfer Settings</b> you can give everything you upload to a site fixed permissions, such
+      as <code>0755</code> for folders and <code>0644</code> for files.</li>
+  </ul>
+</section>
+
+<section id="compare">
+  <h2>Compare &amp; sync</h2>
+  <p><b>Compare &amp; sync</b> compares a folder on your computer with a folder on the server, including all
+    subfolders, by size and date.</p>
+  <figure><img data-shot="compare" alt=""><figcaption>Click a label at the top to tick all files of that kind.</figcaption></figure>
+  <ul>
+    <li>Choose the folders and click <b>Compare</b>. The labels at the top count what it found: <i>Only local</i>,
+      <i>Only on server</i>, <i>Local newer</i>, <i>Server newer</i> and <i>Identical</i>.</li>
+    <li><b>Click a label</b> to tick all those files and show only them; click more labels to add them, or a label
+      again to untick it.</li>
+    <li><b>Upload checked</b> and <b>Download checked</b> transfer everything that is ticked right away.</li>
+    <li>Or choose a <b>Direction</b> (upload, download or both ways) and click <b>Run sync</b>. <b>Mirror</b> also
+      deletes files that only exist on the other side; use it with care.</li>
+    <li>You can change the action per file in the last column before you start.</li>
+  </ul>
+</section>
+
+<section id="zip">
+  <h2>Zips: extract and deploy</h2>
+  <p>Right-click a <code>.zip</code>: <b>Upload &amp; extract…</b> on your computer, or <b>Extract here…</b> on the
+    server.</p>
+  <figure><img data-shot="extract" alt=""><figcaption>The preview shows exactly where every file ends up.</figcaption></figure>
+  <ul>
+    <li>Choose the server folder, and whether the files go directly into it or into a new folder named after the zip.</li>
+    <li>The <b>Result</b> preview shows where the files end up and warns you when something would go to an unexpected
+      place.</li>
+    <li>You set the permissions for folders and files, and whether existing files are overwritten or kept.</li>
+    <li>Over SFTP the zip is unpacked on the server itself; over FTP it is unpacked on your computer and the files are
+      uploaded.</li>
+  </ul>
+  <h3>Deploy</h3>
+  <figure><img data-shot="deploy" alt=""><figcaption>Deploy: put a new version of your site online in one click.</figcaption></figure>
+  <p><b>Deploy</b> uploads a zip (a fixed file, or the newest zip in a folder such as <code>site-update_*.zip</code>)
+    and unpacks it into a server folder, optionally after making a backup of that folder. Click <b>Save to site</b>, and
+    the next time it's one click.</p>
+</section>
+
+<section id="settings">
+  <h2>Settings</h2>
+  <p>Click the <b>gear</b> at the top right.</p>
+  <figure><img data-shot="settings" alt=""><figcaption>The Settings window.</figcaption></figure>
+  <ul>
+    <li><b>General:</b> the language (also with the flags at the top) and whether FileBridge looks for updates.</li>
+    <li><b>Filters:</b> names such as <code>.DS_Store</code> and <code>node_modules</code> that are hidden and never
+      transferred (wildcards allowed).</li>
+    <li><b>Transfers:</b> the maximum upload and download speed.</li>
+    <li><b>View/Edit:</b> the editor that opens files, and whether edited files are uploaded without asking.</li>
+    <li><b>User manual:</b> this manual. It is also behind <b>Manual</b> at the bottom of the window.</li>
+  </ul>
+</section>
+
+<section id="updates">
+  <h2>Updates and closing</h2>
+  <ul>
+    <li>FileBridge looks for a new version when it starts and every few hours. You get a message once with what is
+      new, and <b>Update available</b> stays at the bottom. Download the new version and replace the app; your sites and
+      passwords are kept.</li>
+    <li>The <b>power button</b> at the top right closes FileBridge. When files are still being transferred, or edited
+      files are not uploaded yet, it asks first.</li>
+  </ul>
+</section>
+
+<section id="plugins">
+  <h2>Plugins</h2>
+  <p>Under <b>Plugins ▾</b> and in the right-click menu you find extra actions, such as <i>Calculate size</i>,
+    <i>Find files by name</i> and <i>Zip selected items</i>. You can add your own: every Python file in the plugins
+    folder adds actions. <b>Plugins ▾ → Open plugins folder</b> shows where it is, and the template there explains
+    everything. Choose <b>Reload plugins</b> after a change; you don't need to restart.</p>
+</section>
+
+<section id="privacy">
+  <h2>Your data and safety</h2>
+  <ul>
+    <li>Your sites are stored on your own computer, in the folder <code>.filebridge</code> in your home folder;
+      passwords are in your computer's password store. Nothing goes anywhere else.</li>
+    <li>FileBridge only works on your own computer: other websites and computers can't use it.</li>
+    <li>The first time you connect to an SFTP server, FileBridge remembers its key. If that key ever changes, it refuses
+      to connect and warns you, because someone could be intercepting the connection.</li>
+    <li>The apps are signed: <span data-os="mac">notarised by Apple, so macOS opens FileBridge without a warning</span>
+      <span data-os="win">by DataLore, so Windows shows DataLore as the publisher</span><span data-os="linux">the
+      downloads come with checksums and a GPG signature</span>.</li>
+  </ul>
+</section>

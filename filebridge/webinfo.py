@@ -10,6 +10,7 @@ import urllib.request
 
 from . import __version__
 from .common import ApiError
+from .i18n import tr
 
 # Folder names that are usually served to the whole internet
 PUBLIC_DIRS = {'public_html', 'www', 'htdocs', 'httpdocs', 'html', 'web', 'wwwroot', 'public'}
@@ -83,10 +84,10 @@ def clean_web_map(value):
             if not line:
                 continue
             if '=' not in line:
-                raise ApiError(f'Web addresses: use "server folder = web address", not "{line}"')
+                raise ApiError(tr('Web addresses: use "server folder = web address", not "{line}"', line=line))
             d, u = (x.strip() for x in line.split('=', 1))
         if not u.lower().startswith(('http://', 'https://')):
-            raise ApiError(f'Web addresses: "{u}" must start with https:// or http://')
+            raise ApiError(tr('Web addresses: "{url}" must start with https:// or http://', url=u))
         out.append({'dir': '/' + d.strip().strip('/'), 'url': u.rstrip('/')})
     return out
 

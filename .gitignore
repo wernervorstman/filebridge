@@ -13,3 +13,4 @@ FileBridge-signing/
 *.PRIVATE.asc
 *.REVOKE.asc
 *.p12
+tests/.fake_sftp_host_key

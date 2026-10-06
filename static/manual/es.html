@@ -1,0 +1,232 @@
+<!-- Manual de usuario de FileBridge (español). Actualízalo con cada función nueva, también en.html y nl.html,
+     y haz las imágenes nuevas con tools/manual_shots.py. -->
+<section id="start">
+  <h2>Primeros pasos</h2>
+  <p>FileBridge copia archivos entre tu ordenador y un servidor web. Tu ordenador está a la <b>izquierda</b>, el servidor
+    a la <b>derecha</b>, y abajo ves la <b>Cola</b> con todo lo que se está transfiriendo.</p>
+  <figure><img data-shot="overview" alt=""><figcaption>FileBridge conectado a un servidor.</figcaption></figure>
+  <ol>
+    <li>Haz clic arriba en <b>Gestor de sitios</b> y luego en <b>Nuevo sitio</b>.</li>
+    <li>Rellena los datos de tu proveedor de hosting: <b>Protocolo</b>, <b>Servidor</b>, <b>Usuario</b> y
+      <b>Contraseña</b> (consulta <a href="#sites">Guardar tus sitios</a>).</li>
+    <li>Haz clic en <b>Conectar</b>. A la derecha aparecen las carpetas del servidor.</li>
+    <li>Marca en un lado los archivos que quieras y haz clic en <b>Subir →</b> o <b>← Descargar</b>.</li>
+  </ol>
+  <p class="tip">¿Solo quieres probar algo una vez? Usa <b>Conexión rápida</b> arriba: escribe el servidor, el usuario
+    y la contraseña, y no se guarda nada.</p>
+</section>
+
+<section id="sites">
+  <h2>Guardar tus sitios</h2>
+  <p>El <b>Gestor de sitios</b> guarda todos tus servidores, en carpetas si quieres. Funciona como el de FileZilla.</p>
+  <figure><img data-shot="sitemanager" alt=""><figcaption>El Gestor de sitios.</figcaption></figure>
+  <ul>
+    <li><b>Protocolo:</b> <b>SFTP</b> (por SSH, recomendado) o <b>FTP</b>. Con FTP elige <i>Usar FTP explícito sobre TLS
+      si está disponible</i>, así tu contraseña viaja cifrada.</li>
+    <li><b>Servidor</b> y <b>Puerto:</b> deja Puerto vacío para el puerto habitual (SFTP 22, FTP 21). Algunos proveedores
+      usan otro puerto SSH; te dicen cuál.</li>
+    <li><b>Tipo de acceso:</b> <i>Normal</i> guarda la contraseña, <i>Pedir contraseña</i> no la guarda nunca. Con SFTP
+      también puedes usar un archivo de clave o el agente SSH.</li>
+    <li>Tu contraseña se guarda en el almacén de contraseñas de tu ordenador<span data-os="mac"> (el Llavero). Si macOS
+      pregunta si FileBridge puede usarlo, escribe la contraseña de tu Mac y haz clic en <b>Permitir siempre</b></span><span
+      data-os="win"> (el Administrador de credenciales de Windows)</span><span data-os="linux"> (el llavero de tu
+      escritorio)</span>, nunca en un archivo.</li>
+    <li><b>Color de fondo:</b> las listas de archivos toman este tono mientras estás conectado, así siempre sabes en qué
+      servidor estás.</li>
+    <li><b>Duplicar</b> copia un sitio con su contraseña; arrastra un sitio a una carpeta para moverlo.</li>
+    <li>¿Vienes de FileZilla? <b>Importar de FileZilla…</b> copia todos tus sitios, con sus carpetas y (si FileZilla no
+      tiene contraseña maestra) sus contraseñas.</li>
+  </ul>
+  <h3>¿Qué usuario?</h3>
+  <p>En los sitios FTP, FileBridge reconoce el panel de hosting del servidor y te indica bajo <b>Usuario</b> cómo es el
+    nombre de usuario:</p>
+  <ul>
+    <li><b>Plesk</b> (por ejemplo Cloud86): solo el nombre de la cuenta del panel, como <code>ftp1</code> – sin
+      <code>@dominio</code>. Si escribiste <code>ftp1@dominio.es</code>, un botón <b>Usar "ftp1"</b> lo corrige.</li>
+    <li><b>DirectAdmin</b> y <b>cPanel</b>: las cuentas FTP adicionales son <code>nombre@dominio</code>, como
+      <code>ftp@ejemplo.es</code>; la cuenta principal es solo el nombre de usuario.</li>
+  </ul>
+</section>
+
+<section id="test">
+  <h2>Probar una conexión</h2>
+  <p>¿No conecta? Haz clic en <b>Probar conexión</b> en el Gestor de sitios. FileBridge prueba los ajustes del formulario
+    paso a paso y muestra dónde falla: nombre del servidor, puerto, tipo de servidor, cifrado e inicio de sesión. No se
+    guarda nada.</p>
+  <figure><img data-shot="testconn" alt=""><figcaption>Cada paso recibe un ✓ o un ✗ con una explicación.</figcaption></figure>
+  <ul>
+    <li>Cuando puede, FileBridge ofrece una solución con un clic, por ejemplo <b>Cambiar a SFTP</b> si elegiste FTP en un
+      puerto SSH, o si FTP está bloqueado en tu red pero el puerto SSH está abierto.</li>
+    <li>Si el servidor rechaza el inicio de sesión, ves su propia respuesta (como <i>530 Login incorrect</i>), así puedes
+      distinguir una contraseña incorrecta de una cuenta bloqueada.</li>
+  </ul>
+</section>
+
+<section id="blocked">
+  <h2>Cuando FTP está bloqueado</h2>
+  <p>Las wifi públicas, los hoteles y las oficinas bloquean a menudo FTP (puerto 21). FileBridge dice entonces <i>sin
+    respuesta</i> y explica por qué. SFTP y las páginas web suelen seguir funcionando.</p>
+  <figure><img data-shot="fallback" alt=""><figcaption>Gestor de sitios → Avanzado → Cuando FTP está bloqueado.</figcaption></figure>
+  <p>En <b>Gestor de sitios → Avanzado</b>, marca <b>conectar con SFTP</b> y escribe el puerto y el usuario SSH de tu
+    proveedor de hosting. Si el servidor FTP no responde, FileBridge se conecta solo al mismo servidor por SFTP, con la
+    misma contraseña. El acceso SSH tiene que estar activado en tu cuenta.</p>
+</section>
+
+<section id="transfer">
+  <h2>Subir y descargar</h2>
+  <ul>
+    <li><b>Marca</b> los archivos y carpetas que quieras (la casilla delante de cada línea) y haz clic en <b>Subir →</b>
+      o <b>← Descargar</b>. Mayúsculas + casilla marca todo lo que hay entre medias.</li>
+    <li>Hacer clic en el nombre de un archivo no selecciona nada, así nunca pierdes una selección sin querer. <b>Un clic
+      en una carpeta la abre</b>; <code>..</code> sube un nivel.</li>
+    <li><b>Doble clic</b> en un archivo para transferir solo ese archivo.</li>
+    <li><b>Arrastra</b> archivos de un lado a otro, sobre una carpeta para meterlos dentro.<span data-os="mac win"> En la
+      ventana de la aplicación también puedes arrastrar archivos desde el <span data-os="mac">Finder</span><span
+      data-os="win">Explorador</span> a la lista del servidor.</span></li>
+    <li><b>Si el archivo ya existe</b> (abajo a la derecha) decide qué pasa con los archivos que ya están: <i>Omitir si
+      existe</i> (por defecto, solo pasan los archivos nuevos), <i>Sobrescribir si es más reciente</i>,
+      <i>Sobrescribir</i>, <i>Omitir si tiene el mismo tamaño</i> o <i>Reanudar</i>.</li>
+  </ul>
+  <figure><img data-shot="queue" alt=""><figcaption>La cola muestra el progreso y un resumen al terminar.</figcaption></figure>
+  <p>Si fallan algunos archivos, los demás se transfieren igualmente y la cola muestra <b>Reintentar</b> solo para los
+    que fallaron. Se transfieren varios archivos a la vez (3 por defecto; por sitio en <b>Transferencia</b>).</p>
+  <p class="tip">¿Subes a una carpeta web pública como <code>public_html</code>? FileBridge te avisa de archivos que
+    cualquiera podría descargar después, como zips, copias de bases de datos (<code>.sql</code>), copias de seguridad y
+    archivos <code>.env</code>. Elige <b>Omitir estos archivos</b> o <b>Subir de todos modos</b>.</p>
+</section>
+
+<section id="select">
+  <h2>Seleccionar archivos</h2>
+  <figure><img data-shot="selecttype" alt=""><figcaption>Seleccionar tipo: solo se muestran los tipos elegidos.</figcaption></figure>
+  <ul>
+    <li><b>Seleccionar tipo ▾</b> selecciona todos los archivos de un tipo, como <code>.jpg</code>, y muestra solo esos.
+      Elige más tipos para añadirlos, elige un tipo otra vez para quitarlo. Abajo pone <i>Solo se muestra …</i> con
+      <b>mostrar todo</b>.</li>
+    <li><b>Seleccionar permiso ▾</b> selecciona todo lo que tiene un permiso concreto, como <code>0777</code>.</li>
+    <li><b>Seleccionar nuevos ▾</b> compara la carpeta con la que está abierta en el otro lado y selecciona lo que falta
+      o ha cambiado allí. <b>Resaltar diferencias</b> colorea las listas: verde falta en el otro lado, naranja ha
+      cambiado.</li>
+    <li>⌘A selecciona todo, Esc borra la selección.</li>
+  </ul>
+</section>
+
+<section id="files">
+  <h2>Trabajar con archivos</h2>
+  <ul>
+    <li><b>Nueva carpeta</b>, <b>Cambiar nombre</b> (F2), <b>Mover a…</b> y <b>Eliminar</b> actúan sobre lo que has
+      marcado. Eliminar en tu ordenador mueve los archivos a la papelera; eliminar en el servidor es definitivo y pide
+      confirmación antes.</li>
+    <li><b>Clic derecho</b> en un archivo para todas las acciones, como <b>Ver/editar</b> (abre un archivo del servidor en
+      tu editor y lo vuelve a subir cuando guardas), <b>Copiar ruta</b>, <b>Abrir en el navegador</b> y <b>Copiar
+      URL</b>.</li>
+    <li>Escribe tus direcciones web en <b>Gestor de sitios → Avanzado → Direcciones web</b>, por ejemplo
+      <code>/public_html = https://ejemplo.es</code>, para abrir archivos del servidor en tu navegador.</li>
+    <li>El botón <b>⇄</b> de arriba (navegación sincronizada) mantiene los dos lados en la misma subcarpeta. El botón del
+      árbol muestra un árbol de carpetas junto a la lista. Con el botón de marcadores guardas una carpeta local y una del
+      servidor a las que saltas a la vez.</li>
+    <li>Ensancha una columna arrastrando el borde de su encabezado; arrastra la barra sobre la cola para hacerla más alta
+      o más baja. Doble clic para restablecer.</li>
+  </ul>
+</section>
+
+<section id="permissions">
+  <h2>Permisos</h2>
+  <p><b>Permisos</b> (o clic derecho → <b>Permisos…</b>) abre la misma ventana que en FileZilla.</p>
+  <figure><img data-shot="permissions" alt=""><figcaption>Cambia los permisos de los elementos marcados.</figcaption></figure>
+  <ul>
+    <li>Marca Lectura, Escritura y Ejecución para Propietario, Grupo y Público, o escribe un número como <code>755</code>
+      o un cambio como <code>u+x,go-w</code>.</li>
+    <li>Si los elementos marcados son distintos, una casilla muestra un guion: ese permiso se queda como está en cada
+      elemento.</li>
+    <li><b>Aplicar también a las subcarpetas</b> cambia también todo lo que hay dentro de las carpetas, para todos los
+      elementos, solo archivos o solo carpetas. <b>Cambiar solo los elementos que ahora tienen los permisos</b> limita el
+      cambio a, por ejemplo, todo lo que ahora tiene <code>0777</code>.</li>
+    <li>En <b>Transferencia</b> de un sitio puedes dar permisos fijos a todo lo que subes a ese sitio, como
+      <code>0755</code> para carpetas y <code>0644</code> para archivos.</li>
+  </ul>
+</section>
+
+<section id="compare">
+  <h2>Comparar y sincronizar</h2>
+  <p><b>Comparar</b> compara una carpeta de tu ordenador con una carpeta del servidor, con todas sus subcarpetas, por
+    tamaño y fecha.</p>
+  <figure><img data-shot="compare" alt=""><figcaption>Haz clic en una etiqueta de arriba para marcar todos los archivos de ese tipo.</figcaption></figure>
+  <ul>
+    <li>Elige las carpetas y haz clic en <b>Comparar</b>. Las etiquetas de arriba cuentan lo que ha encontrado: <i>Solo
+      en local</i>, <i>Solo en el servidor</i>, <i>Local más reciente</i>, <i>Servidor más reciente</i> e
+      <i>Idéntico</i>.</li>
+    <li><b>Haz clic en una etiqueta</b> para marcar todos esos archivos y mostrar solo esos; haz clic en más etiquetas
+      para añadirlas, o en una etiqueta otra vez para desmarcarla.</li>
+    <li><b>Subir marcados</b> y <b>Descargar marcados</b> transfieren enseguida todo lo marcado.</li>
+    <li>O elige una <b>Dirección</b> (subir, descargar o en ambos sentidos) y haz clic en <b>Sincronizar</b>.
+      <b>Espejo</b> también elimina los archivos que solo existen en el otro lado; úsalo con cuidado.</li>
+    <li>En la última columna puedes cambiar la acción de cada archivo antes de empezar.</li>
+  </ul>
+</section>
+
+<section id="zip">
+  <h2>Zips: extraer y desplegar</h2>
+  <p>Clic derecho en un <code>.zip</code>: <b>Subir y extraer…</b> en tu ordenador, o <b>Extraer aquí…</b> en el
+    servidor.</p>
+  <figure><img data-shot="extract" alt=""><figcaption>La vista previa muestra exactamente dónde acaba cada archivo.</figcaption></figure>
+  <ul>
+    <li>Elige la carpeta del servidor, y si los archivos van directamente en ella o en una carpeta nueva con el nombre
+      del zip.</li>
+    <li>El <b>Resultado</b> muestra dónde acaban los archivos y te avisa si algo iría a un sitio inesperado.</li>
+    <li>Tú eliges los permisos de carpetas y archivos, y si los archivos existentes se sobrescriben o se conservan.</li>
+    <li>Por SFTP el zip se descomprime en el propio servidor; por FTP se descomprime en tu ordenador y se suben los
+      archivos.</li>
+  </ul>
+  <h3>Desplegar</h3>
+  <figure><img data-shot="deploy" alt=""><figcaption>Desplegar: publica una versión nueva de tu web con un clic.</figcaption></figure>
+  <p><b>Desplegar</b> sube un zip (un archivo fijo, o el zip más reciente de una carpeta, como
+    <code>site-update_*.zip</code>) y lo descomprime en una carpeta del servidor, si quieres después de hacer una copia de
+    seguridad de esa carpeta. Haz clic en <b>Guardar en el sitio</b> y la próxima vez será un solo clic.</p>
+</section>
+
+<section id="settings">
+  <h2>Ajustes</h2>
+  <p>Haz clic en el <b>engranaje</b> de arriba a la derecha.</p>
+  <figure><img data-shot="settings" alt=""><figcaption>La ventana de Ajustes.</figcaption></figure>
+  <ul>
+    <li><b>General:</b> el idioma (también con las banderas de arriba) y si FileBridge busca actualizaciones.</li>
+    <li><b>Filtros:</b> nombres como <code>.DS_Store</code> y <code>node_modules</code> que se ocultan y nunca se
+      transfieren (se permiten comodines).</li>
+    <li><b>Transferencias:</b> la velocidad máxima de subida y de descarga.</li>
+    <li><b>Ver/editar:</b> el editor que abre los archivos, y si los archivos editados se suben sin preguntar.</li>
+    <li><b>Manual de usuario:</b> este manual. También está en <b>Manual</b> en la parte inferior de la ventana.</li>
+  </ul>
+</section>
+
+<section id="updates">
+  <h2>Actualizaciones y cerrar</h2>
+  <ul>
+    <li>FileBridge busca una versión nueva al arrancar y cada pocas horas. Recibes una vez un aviso con las novedades, y
+      abajo se queda <b>Actualización disponible</b>. Descarga la versión nueva y sustituye la aplicación; tus sitios y
+      contraseñas se conservan.</li>
+    <li>El <b>botón de encendido</b> de arriba a la derecha cierra FileBridge. Si todavía se están transfiriendo archivos,
+      o hay archivos editados sin subir, pregunta antes.</li>
+  </ul>
+</section>
+
+<section id="plugins">
+  <h2>Plugins</h2>
+  <p>En <b>Plugins ▾</b> y en el menú del clic derecho encuentras acciones extra, como <i>Calculate size</i>, <i>Find
+    files by name</i> y <i>Zip selected items</i>. Puedes añadir las tuyas: cada archivo Python de la carpeta de plugins
+    añade acciones. <b>Plugins ▾ → Abrir la carpeta de plugins</b> muestra dónde está, y la plantilla que hay dentro lo
+    explica todo. Elige <b>Recargar plugins</b> después de un cambio; no hace falta reiniciar.</p>
+</section>
+
+<section id="privacy">
+  <h2>Tus datos y la seguridad</h2>
+  <ul>
+    <li>Tus sitios se guardan en tu propio ordenador, en la carpeta <code>.filebridge</code> de tu carpeta personal; las
+      contraseñas están en el almacén de contraseñas de tu ordenador. No se envía nada a ningún otro sitio.</li>
+    <li>FileBridge solo funciona en tu propio ordenador: otras páginas web y otros ordenadores no pueden usarlo.</li>
+    <li>La primera vez que te conectas a un servidor SFTP, FileBridge guarda su clave. Si esa clave cambia alguna vez, se
+      niega a conectar y te avisa, porque alguien podría estar interceptando la conexión.</li>
+    <li>Las aplicaciones están firmadas: <span data-os="mac">notarizadas por Apple, así macOS abre FileBridge sin
+      avisos</span><span data-os="win">por DataLore, así Windows muestra DataLore como editor</span><span
+      data-os="linux">las descargas incluyen sumas de comprobación y una firma GPG</span>.</li>
+  </ul>
+</section>

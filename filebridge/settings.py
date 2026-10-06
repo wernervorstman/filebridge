@@ -4,6 +4,7 @@ import json
 import os
 
 from .common import CONF_DIR, ApiError
+from .i18n import tr
 
 DEFAULTS = {
     # Filename filters (like FileZilla's Directory listing filters)
@@ -19,6 +20,8 @@ DEFAULTS = {
     'edit_auto_upload': False,   # upload edited files without asking
     # Updates
     'check_updates': True,       # look on GitHub for a newer FileBridge at startup
+    # Interface language: 'auto' (follows the computer), 'en', 'nl' or 'es'
+    'language': 'auto',
 }
 
 
@@ -50,7 +53,9 @@ class Settings:
                 try:
                     v = max(0, int(v or 0))
                 except (TypeError, ValueError):
-                    raise ApiError('Speed limits must be a number of KB/s (0 = unlimited)')
+                    raise ApiError(tr('Speed limits must be a number of KB/s (0 = unlimited)'))
+            elif k == 'language':
+                v = v if v in ('auto', 'en', 'nl', 'es') else 'auto'
             elif isinstance(DEFAULTS[k], bool):
                 v = bool(v)
             else:

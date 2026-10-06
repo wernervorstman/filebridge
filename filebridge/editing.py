@@ -13,6 +13,7 @@ import uuid
 
 from . import system, transfer
 from .jobs import Job
+from .i18n import tr
 
 KEEP_DAYS = 7
 
@@ -55,7 +56,7 @@ class EditManager:
         with self.lock:
             self.items[eid] = item
         system.edit_file(local, self.app.settings.get('editor'))
-        self.app.log(f'Editing {remote_path} – save the file in your editor to upload it again')
+        self.app.log(tr('Editing {path} – save the file in your editor to upload it again', path=remote_path))
         return eid
 
     def _watch(self):
@@ -80,10 +81,10 @@ class EditManager:
     def upload(self, eid):
         it = self.items.get(eid)
         if not it:
-            raise ValueError('This edit is no longer open')
+            raise ValueError(tr('This edit is no longer open'))
         if not it['remote'].alive():
             it['state'] = 'changed'
-            raise ValueError(f'Not connected to {it["site"]} anymore – reconnect, then upload again')
+            raise ValueError(tr('Not connected to {site} anymore – reconnect, then upload again', site=it['site']))
         it['state'] = 'uploading'
         it['error'] = None
 
@@ -92,7 +93,7 @@ class EditManager:
                 transfer.upload_file(job, sftp, it['local'], it['remote_path'], 'overwrite')
                 it['mtime'] = os.path.getmtime(it['local'])
                 it['state'] = 'watching'
-                msg = f'Uploaded your changes to {it["remote_path"]}'
+                msg = tr('Uploaded your changes to {path}', path=it['remote_path'])
                 job.log(msg, 'ok')
                 return {'message': msg}
             except Exception as e:
@@ -100,7 +101,7 @@ class EditManager:
                 it['error'] = str(e)
                 raise
 
-        return self.app._job('edit-upload', f'Upload edited {it["name"]} → {posixpath.dirname(it["remote_path"])}',
+        return self.app._job('edit-upload', tr('Upload edited {name} → {folder}', name=it['name'], folder=posixpath.dirname(it['remote_path'])),
                              fn, ['remote'], conn=it['remote'])
 
     def discard(self, eid):

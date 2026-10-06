@@ -9,6 +9,7 @@ import zipfile
 
 from . import transfer
 from . import remote as R
+from .i18n import tr
 
 SKIP = ('__MACOSX', '.DS_Store')
 
@@ -41,15 +42,15 @@ def resolve_zip(cfg):
     if zp:
         zp = os.path.expanduser(zp)
         if not os.path.isfile(zp):
-            raise ValueError(f'Zip file not found: {zp}')
+            raise ValueError(tr('Zip file not found: {path}', path=zp))
         return zp
     folder = os.path.expanduser((cfg.get('zip_folder') or '').strip())
     pattern = (cfg.get('zip_pattern') or '*.zip').strip()
     if not folder or not os.path.isdir(folder):
-        raise ValueError('Choose a zip file, or a folder to take the newest zip from.')
+        raise ValueError(tr('Choose a zip file, or a folder to take the newest zip from.'))
     matches = [f for f in glob.glob(os.path.join(folder, pattern)) if os.path.isfile(f)]
     if not matches:
-        raise ValueError(f'No file matching "{pattern}" in {folder}')
+        raise ValueError(tr('No file matching "{pattern}" in {folder}', pattern=pattern, folder=folder))
     return max(matches, key=os.path.getmtime)
 
 
@@ -72,20 +73,20 @@ def inspect(zp):
 def _backup(job, remote, sftp, remote_dir, ts, site_name):
     parent, name = posixpath.split(remote_dir.rstrip('/'))
     if not name:
-        job.log('Backup skipped: cannot back up the root folder.', 'warn')
+        job.log(tr('Backup skipped: cannot back up the root folder.'), 'warn')
         return
     if remote.has_command('tar'):
         archive = f'{name}_backup_{ts}.tar.gz'
         rc, _, err = remote.exec(f'cd {shlex.quote(parent or "/")} && tar czf {shlex.quote(archive)} {shlex.quote(name)}',
                                  timeout=900)
         if rc == 0:
-            job.log(f'Backup created on server: {posixpath.join(parent, archive)}', 'ok')
+            job.log(tr('Backup created on server: {path}', path=posixpath.join(parent, archive)), 'ok')
             return
-        job.log(f'Server backup failed ({err.strip()[:200]}), downloading a copy instead.', 'warn')
+        job.log(tr('Server backup failed ({error}), downloading a copy instead.', error=err.strip()[:200]), 'warn')
     dest = os.path.join(os.path.expanduser('~/FileBridge backups'), site_name, f'{name}_{ts}')
-    job.current = 'backup'
+    job.current = tr('backup')
     transfer.download_paths(job, sftp, [remote_dir], dest, 'overwrite')
-    job.log(f'Backup downloaded to {dest}', 'ok')
+    job.log(tr('Backup downloaded to {path}', path=dest), 'ok')
 
 
 def run(job, remote, sftp, cfg, site_name):
@@ -93,7 +94,7 @@ def run(job, remote, sftp, cfg, site_name):
     info = inspect(zp)
     remote_dir = (cfg.get('remote_dir') or '').strip().rstrip('/')
     if not remote_dir:
-        raise ValueError('Choose the remote folder to deploy to.')
+        raise ValueError(tr('Choose the remote folder to deploy to.'))
     remote_dir = sftp.normalize(remote_dir) if R.exists(sftp, remote_dir) else remote_dir
     strip_top = bool(cfg.get('strip', True) and info['top_folder'])
     method = cfg.get('method') or 'auto'
@@ -101,11 +102,12 @@ def run(job, remote, sftp, cfg, site_name):
 
     has_unzip = method != 'local' and remote.has_command('unzip')
     if method == 'server' and not has_unzip:
-        raise ValueError('This server does not allow running "unzip" over SSH. Use method "Unpack locally".')
+        raise ValueError(tr('This server does not allow running "unzip" over SSH. Use method "Unpack locally".'))
     if method == 'auto':
         method = 'server' if has_unzip else 'local'
-    job.log(f'Deploying {info["name"]} → {remote_dir} (method: {method}'
-            f'{", contents of " + info["top_folder"] + "/" if strip_top else ""})')
+    how = tr('on the server') if method == 'server' else tr('locally')
+    job.log(tr('Deploying {name} → {target} (unpacked {how})', name=info['name'], target=remote_dir, how=how)
+            + (' – ' + tr('contents of {folder}/', folder=info['top_folder']) if strip_top else ''))
 
     R.makedirs(sftp, remote_dir, lambda d: transfer.set_dir_perm(job, sftp, d))
     if cfg.get('backup'):
@@ -125,21 +127,22 @@ def run(job, remote, sftp, cfg, site_name):
         if perms and perms[1] is not None:
             cmd += f'find {q(src)} -type f -exec chmod {perms[1]:04o} {{}} +; '
         cmd += copy_contents_cmd(src, '.', skip_existing=False)
-        job.current = 'unpacking on server'
+        job.current = tr('unpacking on the server')
         try:
             rc, _, err = remote.exec(cmd, timeout=900)
         finally:
             remote.exec(f'cd {q(remote_dir)} && rm -rf {q(tmpname)} {q(zname)}', timeout=300)
         if rc != 0:
-            raise RuntimeError(f'Unpacking on the server failed: {err.strip()[:300]}')
+            raise RuntimeError(tr('Unpacking on the server failed: {error}', error=err.strip()[:300]))
     else:
         with tempfile.TemporaryDirectory(prefix='filebridge_') as tmp:
-            job.current = 'unpacking locally'
+            job.current = tr('unpacking on this computer')
             with zipfile.ZipFile(zp) as z:
                 z.extractall(tmp)
             root = os.path.join(tmp, info['top_folder']) if strip_top else tmp
             sources = [os.path.join(root, n) for n in sorted(os.listdir(root)) if n not in SKIP]
             transfer.upload_paths(job, sftp, sources, remote_dir, 'overwrite')
 
-    return {'message': f'Deployed {info["name"]} to {remote_dir} ({info["files"]} files, '
-                       f'{"unpacked on server" if method == "server" else "unpacked locally and uploaded"}).'}
+    return {'message': tr('Deployed {name} to {target} ({n} files, unpacked on the server).' if method == 'server' else
+                          'Deployed {name} to {target} ({n} files, unpacked locally and uploaded).',
+                          name=info['name'], target=remote_dir, n=info['files'])}

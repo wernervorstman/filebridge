@@ -14,7 +14,8 @@ import ssl
 import stat
 import time
 
-from .common import ApiError
+from .common import ApiError, LoginFailed
+from .i18n import tr
 
 try:  # verify certificates like macOS does (fills in missing intermediate certificates)
     import truststore
@@ -45,7 +46,7 @@ def charset_of(site):
     try:
         return codecs.lookup(cs).name
     except LookupError:
-        raise ApiError(f'Unknown character set: {cs}')
+        raise ApiError(tr('Unknown character set: {charset}', charset=cs))
 
 
 class FtpTimeout(ApiError):
@@ -371,7 +372,7 @@ class FtpClient:
         self.binary()  # SIZE is refused in ASCII mode
         size = self.ftp.size(path)
         if size is None:
-            raise OSError(f'Not found: {path}')
+            raise OSError(tr('Not found: {path}', path=path))
         mtime = 0
         try:
             mtime = _parse_time(self.ftp.sendcmd(f'MDTM {path}').split()[-1])
@@ -443,44 +444,46 @@ class FtpRemote(Remote):
             if msg.startswith('530'):  # keep the server's own words: it may be a ban or a connection limit
                 tip = ''
                 if '@' in (s.get('username') or ''):  # Plesk (e.g. Cloud86) wants the bare account name
-                    tip = (f' Tip: some hosting panels (Plesk) use the FTP account name without "@domain" – '
-                           f'try "{s["username"].split("@")[0]}" as username.')
-                raise ApiError(f'Login failed: wrong username, password or key.{tip} Server: {msg}')
+                    tip = tr('some hosting panels (Plesk) use the FTP account name without "@domain" – try "{user}" as username.',
+                             user=s['username'].split('@')[0])
+                raise LoginFailed(tr('Login failed: wrong username, password or key.') + (f' Tip: {tip}' if tip else '')
+                                  + f' Server: {msg}', server_reply=msg, tip=tip)
             if s.get('encryption') == 'explicit' and msg[:3] in ('500', '502', '504', '534'):
-                raise ApiError(f'This server does not support FTP over TLS ({msg}). Choose '
-                               f'"Use explicit FTP over TLS if available" or "Only use plain FTP".')
-            raise ApiError(f'FTP error: {msg}')
+                raise ApiError(tr('This server does not support FTP over TLS ({reply}). Choose "Use explicit FTP over TLS '
+                                  'if available" or "Only use plain FTP".', reply=msg))
+            raise ApiError(tr('FTP error: {reply}', reply=msg))
         except ssl.SSLError as e:
             raise ApiError(self._cert_message(e))
         except ConnectionRefusedError:
             p = s.get('port') or 21
-            raise ApiError(f'The server refused the connection on port {p}. FTP normally uses port 21 '
-                           f'(990 for implicit TLS). Leave Port empty to use the default.')
+            raise ApiError(tr('The server refused the connection on port {port}. FTP normally uses port 21 (990 for '
+                              'implicit TLS). Leave Port empty to use the default.', port=p))
         except TimeoutError:  # includes socket.timeout: nothing answered at all
             p = s.get('port') or 21
-            raise FtpTimeout(f'Could not connect to {s["host"]}: timed out. The network you are on may block FTP '
-                           f'(port {p}) – public, hotel and work wifi often do. Try SFTP instead (your hosting '
-                           f'provider gives you the SSH port), or another network such as your phone\'s hotspot.')
+            raise FtpTimeout(tr('Could not connect to {host}: timed out. The network you are on may block FTP (port {port}) '
+                                '– public, hotel and work wifi often do. Try SFTP instead (your hosting provider gives you '
+                                'the SSH port), or another network such as your phone\'s hotspot.', host=s['host'], port=p))
         except (OSError, EOFError, ftplib.Error) as e:
-            raise ApiError(f'Could not connect to {s["host"]}: {e}')
+            raise ApiError(tr('Could not connect to {host}: {error}', host=s['host'], error=e))
         sock = self.sftp.ftp.sock
-        if isinstance(sock, ssl.SSLSocket):
-            self.fingerprint = f'FTP over TLS ({sock.version()})'
+        self.encrypted = isinstance(sock, ssl.SSLSocket)
+        if self.encrypted:
+            self.fingerprint = tr('FTP over TLS ({version})', version=sock.version())
         else:
-            self.fingerprint = 'FTP – NOT encrypted'
+            self.fingerprint = tr('FTP – NOT encrypted')
         self._last_ok = time.time()
 
     def _cert_message(self, e):
         text = str(getattr(e, 'verify_message', '') or e)
         m = re.search(r'[“"]([^”"]+)[”"] certificate name does not match', text)
         if m:
-            return (f'The server\'s TLS certificate is for "{m.group(1)}", not "{self.site["host"]}". '
-                    f'This is normal on shared hosting. Fix: in Site Manager, set Host to {m.group(1)} '
-                    f'(recommended – the connection stays fully verified), or tick "Accept the certificate '
-                    f'even if it can\'t be verified" under Transfer Settings.')
-        return (f'The server\'s TLS certificate could not be verified ({text}). Use the server host name '
-                f'from your hosting provider, or tick "Accept the certificate even if it can\'t be verified" '
-                f'in Site Manager → Transfer Settings.')
+            return tr('The server\'s TLS certificate is for "{cert}", not "{host}". This is normal on shared hosting. Fix: '
+                      'in Site Manager, set Host to {cert} (recommended – the connection stays fully verified), or tick '
+                      '"Accept the certificate even if it can\'t be verified" under Transfer Settings.',
+                      cert=m.group(1), host=self.site['host'])
+        return tr('The server\'s TLS certificate could not be verified ({reason}). Use the server host name from your '
+                  'hosting provider, or tick "Accept the certificate even if it can\'t be verified" in Site Manager → '
+                  'Transfer Settings.', reason=text)
 
     def close(self):
         if self.sftp:

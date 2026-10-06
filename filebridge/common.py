@@ -9,6 +9,15 @@ class ApiError(Exception):
     """An error with a message that is safe and useful to show in the UI."""
 
 
+class LoginFailed(ApiError):
+    """The server refused the username/password/key. The message keeps the markers ' Tip: ' and
+    ' Server: ' (not translated), which the interface uses to show the tip and the server's reply."""
+    def __init__(self, message, server_reply='', tip=''):
+        super().__init__(message)
+        self.server_reply = server_reply
+        self.tip = tip
+
+
 def ext_of(name, is_dir):
     if is_dir:
         return ''

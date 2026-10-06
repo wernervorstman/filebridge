@@ -3,6 +3,12 @@
 What changed in each FileBridge version. The section of a version is also the text of its GitHub release
 and of the update notice in the app, so keep it short and written for users.
 
+## 1.3.0
+- FileBridge is now available in **English, Dutch and Spanish**: switch with the flags at the top right.
+- A **user manual** with pictures in all three languages: **Manual** at the bottom of the window, or Settings → User manual.
+- **Settings** has a new look with tabs (General, Filters, Transfers, View/Edit, User manual), behind the gear at the top right.
+- The synchronized browsing button is now the **⇄** icon, so the top bar fits on one line.
+
 ## 1.2.8
 - The update notice now also checks while FileBridge stays open, and tells you once what is new in a version.
 - Compare & sync: click a label such as "Only on server" to tick all those files, then **Upload checked** or

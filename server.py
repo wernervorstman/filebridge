@@ -21,7 +21,7 @@ from urllib.parse import unquote, urlparse
 BASE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, BASE)
 
-from filebridge import system  # noqa: E402
+from filebridge import i18n, system  # noqa: E402
 from filebridge.app import App  # noqa: E402
 from filebridge.common import ApiError  # noqa: E402
 
@@ -79,6 +79,7 @@ class Handler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         if not path.startswith('/api/'):
             return self._send(404, b'{"ok":false,"error":"Not found"}', 'application/json')
+        i18n.set_lang(self.headers.get('X-Lang'))  # answer in the language of the interface
         try:
             length = int(self.headers.get('Content-Length') or 0)
             body = json.loads(self.rfile.read(length) or b'{}')

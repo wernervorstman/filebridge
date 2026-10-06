@@ -10,6 +10,7 @@ import subprocess
 import sys
 
 from .common import ApiError
+from .i18n import tr
 
 IS_MAC = sys.platform == 'darwin'
 IS_WIN = sys.platform.startswith('win')
@@ -85,21 +86,21 @@ def edit_file(path, editor=''):
 
 
 def keychain_name():
-    return 'the macOS Keychain' if IS_MAC else 'Windows Credential Manager' if IS_WIN else 'the system keyring'
+    return tr('the macOS Keychain') if IS_MAC else tr('Windows Credential Manager') if IS_WIN else tr('the system keyring')
 
 
 def permission_hint(path):
     """A helpful message when the operating system blocks access to a local folder."""
     name = os.path.basename(path.rstrip('/\\')) or path
     if IS_MAC:
-        return (f'macOS does not allow FileBridge to open "{name}" yet. Open System Settings → Privacy & Security → '
-                f'Files and Folders, find FileBridge and switch on access to this folder (or add FileBridge under '
-                f'Full Disk Access). Then click Refresh.')
-    return f'You do not have permission to open "{name}".'
+        return tr('macOS does not allow FileBridge to open "{name}" yet. Open System Settings → Privacy & Security → '
+                  'Files and Folders, find FileBridge and switch on access to this folder (or add FileBridge under Full '
+                  'Disk Access). Then click Refresh.', name=name)
+    return tr('You do not have permission to open "{name}".', name=name)
 
 
 def file_manager_name():
-    return 'Finder' if IS_MAC else 'Explorer' if IS_WIN else 'file manager'
+    return 'Finder' if IS_MAC else tr('Explorer') if IS_WIN else tr('file manager')
 
 
 def reveal(path):
@@ -126,7 +127,7 @@ def trash(path):
         script = f'tell application "Finder" to delete (POSIX file {as_applescript(path)} as alias)'
         subprocess.run(['osascript', '-e', script], check=True, capture_output=True)
         return
-    raise ApiError('Moving to the Recycle Bin is not available (send2trash is missing)')
+    raise ApiError(tr('Moving to the Recycle Bin is not available (send2trash is missing)'))
 
 
 def as_applescript(s):
@@ -140,7 +141,7 @@ def pick(kind='folder', start='', types=(), invisibles=False, prompt=''):
         dialog = webview.FOLDER_DIALOG if kind == 'folder' else webview.OPEN_DIALOG
         file_types = ()
         if kind == 'file' and types:
-            file_types = (f'Files ({";".join("*." + t for t in types)})',)
+            file_types = (tr('Files') + f' ({";".join("*." + t for t in types)})',)
         result = WINDOW.create_file_dialog(dialog, directory=start or '', file_types=file_types)
         if not result:
             return None
@@ -157,6 +158,6 @@ def pick(kind='folder', start='', types=(), invisibles=False, prompt=''):
         if r.returncode != 0:
             if '-128' in r.stderr:  # Cancel
                 return None
-            raise ApiError(f'Could not open the Finder dialog: {r.stderr.strip()}')
+            raise ApiError(tr('Could not open the Finder dialog: {error}', error=r.stderr.strip()))
         return r.stdout.strip()
-    raise ApiError('The file picker is available in the FileBridge app window. Type the path instead.')
+    raise ApiError(tr('The file picker is available in the FileBridge app window. Type the path instead.'))

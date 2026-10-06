@@ -7,6 +7,7 @@ from collections import Counter
 
 from . import localfs, transfer
 from . import remote as R
+from .i18n import tr
 
 DEFAULT_IGNORE = ['.DS_Store', '.git', 'node_modules', '__pycache__', 'Thumbs.db', '.filebridge_*']
 MTIME_TOLERANCE = 2  # seconds
@@ -64,9 +65,9 @@ def scan_remote(job, sftp, root, patterns):
 def compare(job, sftp, local_root, remote_root, patterns):
     local_root = localfs.norm(local_root)
     if not os.path.isdir(local_root):
-        raise ValueError(f'Local folder not found: {local_root}')
+        raise ValueError(tr('Local folder not found: {path}', path=local_root))
     if not R.is_dir(sftp, remote_root):
-        raise ValueError(f'Remote folder not found: {remote_root}')
+        raise ValueError(tr('Remote folder not found: {path}', path=remote_root))
     L = scan_local(job, local_root, patterns)
     Rm = scan_remote(job, sftp, remote_root, patterns)
     rows = []
@@ -105,7 +106,7 @@ def apply(job, sftp, local_root, remote_root, items):
         if it['action'] == 'upload':
             p = it['path']
             if p.startswith('/') or '..' in p.split('/'):
-                raise ValueError(f'Invalid path: {p}')
+                raise ValueError(tr('Invalid path: {path}', path=p))
             R.makedirs(sftp, posixpath.dirname(posixpath.join(remote_root, p)),
                        lambda d: transfer.set_dir_perm(job, sftp, d))
 
@@ -113,7 +114,7 @@ def apply(job, sftp, local_root, remote_root, items):
         job.check()
         p, action = it['path'], it['action']
         if p.startswith('/') or '..' in p.split('/'):
-            raise ValueError(f'Invalid path: {p}')
+            raise ValueError(tr('Invalid path: {path}', path=p))
         lp = os.path.join(local_root, *p.split('/'))
         rp = posixpath.join(remote_root, p)
         if action == 'upload':
@@ -129,7 +130,7 @@ def apply(job, sftp, local_root, remote_root, items):
 
     counts = Counter(transfer.run_parallel(job, sftp, [i for i in items if i['action'] in
                      ('upload', 'download', 'delete_remote', 'delete_local')], work))
-    labels = {'upload': 'uploaded', 'download': 'downloaded',
-              'delete_remote': 'deleted on server', 'delete_local': 'moved to Trash'}
-    msg = ', '.join(f'{n} {labels[k]}' for k, n in counts.items()) or 'nothing to do'
-    return {'message': f'Sync finished: {msg}.'}
+    labels = {'upload': '{n} uploaded', 'download': '{n} downloaded',
+              'delete_remote': '{n} deleted on server', 'delete_local': '{n} moved to Trash'}
+    msg = ', '.join(tr(labels[k], n=n) for k, n in counts.items()) or tr('nothing to do')
+    return {'message': tr('Sync finished: {summary}.', summary=msg)}

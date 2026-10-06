@@ -5,6 +5,7 @@ import sys
 import xml.etree.ElementTree as ET
 
 from .common import ApiError
+from .i18n import tr
 
 # FileZilla <Protocol> -> (protocol, encryption)
 PROTOCOLS = {
@@ -120,11 +121,11 @@ def read(path=None):
     """Return {'path', 'sites': [{site, password, password_note}], 'skipped': [..]}."""
     path = os.path.expanduser(path or default_path())
     if not os.path.isfile(path):
-        raise ApiError(f'FileZilla site list not found: {path}')
+        raise ApiError(tr('FileZilla site list not found: {path}', path=path))
     try:
         root = ET.parse(path).getroot()
     except ET.ParseError as e:
-        raise ApiError(f'Could not read {path}: {e}')
+        raise ApiError(tr('Could not read {path}: {error}', path=path, error=e))
     servers = root.find('Servers')
     if servers is None:
         return {'path': path, 'sites': [], 'skipped': []}

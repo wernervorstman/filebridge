@@ -7,6 +7,7 @@ import os
 import traceback
 
 from . import transfer
+from .i18n import tr
 
 
 class PluginContext:
@@ -73,8 +74,8 @@ class PluginManager:
                     self.actions[aid] = {**a, 'id': aid, 'plugin': getattr(mod, 'NAME', mod_name)}
             except Exception as e:
                 self.errors.append(f'{fn}: {e}')
-                self.log(f'Plugin {fn} failed to load: {e}\n{traceback.format_exc(limit=2)}', 'error')
-        self.log(f'Loaded {len(self.actions)} plugin action(s)')
+                self.log(tr('Plugin {file} failed to load: {error}', file=fn, error=e) + f'\n{traceback.format_exc(limit=2)}', 'error')
+        self.log(tr('Loaded {n} plugin action(s)', n=len(self.actions)))
 
     def list(self):
         out = []

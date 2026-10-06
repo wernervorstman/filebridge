@@ -1,0 +1,233 @@
+<!-- FileBridge-handleiding (Nederlands). Werk bij met elke nieuwe functie, ook en.html en es.html,
+     en maak nieuwe plaatjes met tools/manual_shots.py. -->
+<section id="start">
+  <h2>Aan de slag</h2>
+  <p>FileBridge zet bestanden over tussen je computer en een webserver. Je computer staat <b>links</b>, de server
+    <b>rechts</b>, en onderin zie je de <b>Wachtrij</b> met alles wat wordt overgezet.</p>
+  <figure><img data-shot="overview" alt=""><figcaption>FileBridge, verbonden met een server.</figcaption></figure>
+  <ol>
+    <li>Klik bovenaan op <b>Sitebeheer</b> en dan op <b>Nieuwe site</b>.</li>
+    <li>Vul de gegevens van je hostingprovider in: <b>Protocol</b>, <b>Host</b>, <b>Gebruiker</b> en <b>Wachtwoord</b>
+      (zie <a href="#sites">Je sites bewaren</a>).</li>
+    <li>Klik op <b>Verbinden</b>. Rechts verschijnen de mappen van de server.</li>
+    <li>Vink aan één kant de bestanden aan die je wilt en klik op <b>Uploaden →</b> of <b>← Downloaden</b>.</li>
+  </ol>
+  <p class="tip">Wil je iets één keer proberen? Gebruik <b>Snel verbinden</b> bovenaan: typ de host, gebruiker en
+    het wachtwoord, en er wordt niets bewaard.</p>
+</section>
+
+<section id="sites">
+  <h2>Je sites bewaren</h2>
+  <p><b>Sitebeheer</b> bewaart al je servers, als je wilt in mappen. Het werkt zoals in FileZilla.</p>
+  <figure><img data-shot="sitemanager" alt=""><figcaption>Sitebeheer.</figcaption></figure>
+  <ul>
+    <li><b>Protocol:</b> <b>SFTP</b> (via SSH, aanbevolen) of <b>FTP</b>. Kies bij FTP <i>Expliciete FTP over TLS
+      gebruiken indien beschikbaar</i>, dan gaat je wachtwoord versleuteld over.</li>
+    <li><b>Host</b> en <b>Poort:</b> laat Poort leeg voor de gewone poort (SFTP 22, FTP 21). Sommige providers gebruiken
+      een andere SSH-poort; die vertellen ze je.</li>
+    <li><b>Inlogtype:</b> <i>Normaal</i> bewaart het wachtwoord, <i>Om wachtwoord vragen</i> bewaart het nooit. Bij SFTP
+      kun je ook een sleutelbestand of de SSH-agent gebruiken.</li>
+    <li>Je wachtwoord staat in de wachtwoordopslag van je computer<span data-os="mac"> (de sleutelhanger). Vraagt macOS
+      of FileBridge die mag gebruiken, typ dan je Mac-wachtwoord en klik op <b>Sta altijd toe</b></span><span
+      data-os="win"> (Windows Referentiebeheer)</span><span data-os="linux"> (de sleutelbos van je bureaublad)</span>,
+      nooit in een bestand.</li>
+    <li><b>Achtergrondkleur:</b> de bestandslijsten krijgen deze tint zolang je verbonden bent, zodat je altijd ziet op
+      welke server je zit.</li>
+    <li><b>Dupliceren</b> kopieert een site met wachtwoord en al; sleep een site naar een map om hem te verplaatsen.</li>
+    <li>Kom je van FileZilla? <b>Importeren uit FileZilla…</b> neemt al je sites over, met hun mappen en (als FileZilla
+      geen hoofdwachtwoord heeft) hun wachtwoorden.</li>
+  </ul>
+  <h3>Welke gebruikersnaam?</h3>
+  <p>Bij FTP-sites herkent FileBridge het hostingpaneel van de server en zegt onder <b>Gebruiker</b> hoe de
+    gebruikersnaam eruitziet:</p>
+  <ul>
+    <li><b>Plesk</b> (bijvoorbeeld Cloud86): alleen de accountnaam uit het paneel, zoals <code>ftp1</code> – zonder
+      <code>@domein</code>. Heb je <code>ftp1@domein.nl</code> getypt, dan zet de knop <b>“ftp1” gebruiken</b> het goed.</li>
+    <li><b>DirectAdmin</b> en <b>cPanel</b>: extra FTP-accounts zijn <code>naam@domein</code>, zoals
+      <code>ftp@voorbeeld.nl</code>; het hoofdaccount is alleen de gebruikersnaam.</li>
+  </ul>
+</section>
+
+<section id="test">
+  <h2>Een verbinding testen</h2>
+  <p>Lukt verbinden niet? Klik in Sitebeheer op <b>Verbinding testen</b>. FileBridge probeert de instellingen uit het
+    formulier stap voor stap en laat zien waar het misgaat: servernaam, poort, soort server, versleuteling en inloggen.
+    Er wordt niets opgeslagen.</p>
+  <figure><img data-shot="testconn" alt=""><figcaption>Elke stap krijgt een ✓ of ✗ met uitleg.</figcaption></figure>
+  <ul>
+    <li>Waar het kan, biedt FileBridge een oplossing met één klik, bijvoorbeeld <b>Overschakelen naar SFTP</b> als je FTP
+      koos op een SSH-poort, of als FTP op je netwerk geblokkeerd is maar de SSH-poort open staat.</li>
+    <li>Weigert de server het inloggen, dan zie je zijn eigen antwoord (zoals <i>530 Login incorrect</i>), zodat je een
+      verkeerd wachtwoord kunt onderscheiden van een geblokkeerd account.</li>
+  </ul>
+</section>
+
+<section id="blocked">
+  <h2>Als FTP geblokkeerd is</h2>
+  <p>Openbare wifi, hotels en kantoren blokkeren vaak FTP (poort 21). FileBridge meldt dan <i>geen antwoord</i> en legt
+    uit hoe dat komt. SFTP en websites werken meestal wel.</p>
+  <figure><img data-shot="fallback" alt=""><figcaption>Sitebeheer → Geavanceerd → Als FTP geblokkeerd is.</figcaption></figure>
+  <p>Vink in <b>Sitebeheer → Geavanceerd</b> aan <b>verbind dan met SFTP</b> en vul de SSH-poort en gebruiker van je
+    hostingprovider in. Geeft de FTP-server geen antwoord, dan maakt FileBridge vanzelf verbinding met dezelfde server via
+    SFTP, met hetzelfde wachtwoord. SSH-toegang moet wel aanstaan voor je account.</p>
+</section>
+
+<section id="transfer">
+  <h2>Uploaden en downloaden</h2>
+  <ul>
+    <li><b>Vink</b> de bestanden en mappen aan die je wilt (het vakje voor elke regel) en klik op <b>Uploaden →</b> of
+      <b>← Downloaden</b>. Shift + vinkje selecteert alles daartussen.</li>
+    <li>Klikken op een bestandsnaam selecteert niets, zodat je nooit per ongeluk je selectie kwijtraakt. <b>Eén klik op
+      een map opent hem</b>; <code>..</code> gaat een map omhoog.</li>
+    <li><b>Dubbelklik</b> op een bestand om alleen dat bestand over te zetten.</li>
+    <li><b>Sleep</b> bestanden tussen de twee kanten, op een map om ze erin te zetten.<span data-os="mac win"> In het
+      appvenster kun je ook bestanden uit de <span data-os="mac">Finder</span><span data-os="win">Verkenner</span> op de
+      serverlijst slepen.</span></li>
+    <li><b>Als het bestand al bestaat</b> (rechtsonder) bepaalt wat er gebeurt met bestanden die er al staan:
+      <i>Overslaan als het bestaat</i> (standaard, alleen nieuwe bestanden gaan over), <i>Overschrijven als nieuwer</i>,
+      <i>Overschrijven</i>, <i>Overslaan als even groot</i> of <i>Hervatten</i>.</li>
+  </ul>
+  <figure><img data-shot="queue" alt=""><figcaption>De wachtrij toont de voortgang en een samenvatting als het klaar is.</figcaption></figure>
+  <p>Mislukken er een paar bestanden, dan gaan de andere gewoon over en toont de wachtrij <b>opnieuw proberen</b> voor
+    alleen de mislukte. Er gaan meerdere bestanden tegelijk (standaard 3; per site in de
+    <b>Overdrachtsinstellingen</b>).</p>
+  <p class="tip">Upload je naar een openbare webmap zoals <code>public_html</code>? Dan waarschuwt FileBridge voor
+    bestanden die iedereen daarna kan downloaden, zoals zips, databasedumps (<code>.sql</code>), back-ups en
+    <code>.env</code>-bestanden. Kies <b>Deze bestanden overslaan</b> of <b>Toch uploaden</b>.</p>
+</section>
+
+<section id="select">
+  <h2>Bestanden kiezen</h2>
+  <figure><img data-shot="selecttype" alt=""><figcaption>Kies soort: alleen de gekozen soorten worden getoond.</figcaption></figure>
+  <ul>
+    <li><b>Kies soort ▾</b> selecteert alle bestanden van een soort, zoals <code>.jpg</code>, en toont alleen die. Kies
+      meer soorten om ze toe te voegen, kies een soort nog eens om hem weg te halen. Onderin staat dan <i>Alleen …
+      getoond</i> met <b>alles tonen</b>.</li>
+    <li><b>Kies rechten ▾</b> selecteert alles met bepaalde rechten, zoals <code>0777</code>.</li>
+    <li><b>Kies nieuwe ▾</b> vergelijkt de map met de map die aan de andere kant openstaat, en selecteert wat daar
+      ontbreekt of veranderd is. <b>Verschillen markeren</b> kleurt de lijsten: groen ontbreekt aan de andere kant,
+      oranje is veranderd.</li>
+    <li>⌘A selecteert alles, Esc wist de selectie.</li>
+  </ul>
+</section>
+
+<section id="files">
+  <h2>Werken met bestanden</h2>
+  <ul>
+    <li><b>Nieuwe map</b>, <b>Hernoemen</b> (F2), <b>Verplaatsen naar…</b> en <b>Verwijderen</b> werken op wat je hebt
+      aangevinkt. Verwijderen op je computer verplaatst bestanden naar de prullenbak; verwijderen op de server is
+      definitief en vraagt eerst om bevestiging.</li>
+    <li><b>Rechtsklik</b> op een bestand voor alle acties, zoals <b>Bekijken/bewerken</b> (opent een serverbestand in je
+      editor en uploadt het opnieuw als je opslaat), <b>Pad kopiëren</b>, <b>Openen in de browser</b> en <b>URL
+      kopiëren</b>.</li>
+    <li>Vul je webadressen in bij <b>Sitebeheer → Geavanceerd → Webadressen</b>, bijvoorbeeld
+      <code>/public_html = https://voorbeeld.nl</code>, om bestanden op de server in je browser te openen.</li>
+    <li>De knop <b>⇄</b> bovenaan (synchroon bladeren) houdt beide kanten in dezelfde submap. De boomknop toont een
+      mappenboom naast de lijst. Met de bladwijzerknop bewaar je een lokale map en een servermap waar je samen naartoe
+      springt.</li>
+    <li>Maak een kolom breder door de rand van de kolomkop te slepen; sleep de balk boven de wachtrij om die hoger of
+      lager te maken. Dubbelklik om terug te zetten.</li>
+  </ul>
+</section>
+
+<section id="permissions">
+  <h2>Rechten</h2>
+  <p><b>Rechten</b> (of rechtsklik → <b>Rechten…</b>) opent hetzelfde venster als in FileZilla.</p>
+  <figure><img data-shot="permissions" alt=""><figcaption>De rechten van de aangevinkte onderdelen wijzigen.</figcaption></figure>
+  <ul>
+    <li>Vink Lezen, Schrijven en Uitvoeren aan voor Eigenaar, Groep en Iedereen, of typ een getal zoals <code>755</code>
+      of een wijziging zoals <code>u+x,go-w</code>.</li>
+    <li>Verschillen de aangevinkte onderdelen, dan toont een vakje een streepje: dat recht blijft op elk onderdeel zoals
+      het is.</li>
+    <li><b>Ook in submappen</b> wijzigt ook alles in mappen, voor alle onderdelen, alleen bestanden of alleen mappen.
+      <b>Alleen onderdelen wijzigen die nu deze rechten hebben</b> beperkt de wijziging tot bijvoorbeeld alles wat nu
+      <code>0777</code> is.</li>
+    <li>In de <b>Overdrachtsinstellingen</b> van een site geef je alles wat je naar die site uploadt vaste rechten,
+      zoals <code>0755</code> voor mappen en <code>0644</code> voor bestanden.</li>
+  </ul>
+</section>
+
+<section id="compare">
+  <h2>Vergelijken &amp; synchroniseren</h2>
+  <p><b>Vergelijken</b> vergelijkt een map op je computer met een map op de server, met alle submappen, op
+    grootte en datum.</p>
+  <figure><img data-shot="compare" alt=""><figcaption>Klik bovenaan op een label om alle bestanden van die soort aan te vinken.</figcaption></figure>
+  <ul>
+    <li>Kies de mappen en klik op <b>Vergelijken</b>. De labels bovenaan tellen wat er gevonden is: <i>Alleen lokaal</i>,
+      <i>Alleen op de server</i>, <i>Lokaal nieuwer</i>, <i>Server nieuwer</i> en <i>Gelijk</i>.</li>
+    <li><b>Klik op een label</b> om al die bestanden aan te vinken en alleen die te tonen; klik meer labels aan om ze
+      toe te voegen, of een label nog eens om het vinkje weg te halen.</li>
+    <li><b>Aangevinkte uploaden</b> en <b>Aangevinkte downloaden</b> zetten alles wat aangevinkt is meteen over.</li>
+    <li>Of kies een <b>Richting</b> (uploaden, downloaden of beide kanten op) en klik op <b>Synchroniseren</b>.
+      <b>Spiegelen</b> verwijdert ook bestanden die alleen aan de andere kant staan; gebruik dat met beleid.</li>
+    <li>In de laatste kolom kun je per bestand de actie wijzigen voordat je begint.</li>
+  </ul>
+</section>
+
+<section id="zip">
+  <h2>Zips: uitpakken en uitrollen</h2>
+  <p>Rechtsklik op een <code>.zip</code>: <b>Uploaden &amp; uitpakken…</b> op je computer, of <b>Hier uitpakken…</b> op
+    de server.</p>
+  <figure><img data-shot="extract" alt=""><figcaption>De voorbeeldweergave laat precies zien waar elk bestand terechtkomt.</figcaption></figure>
+  <ul>
+    <li>Kies de map op de server, en of de bestanden er direct in gaan of in een nieuwe map met de naam van de zip.</li>
+    <li>Het <b>Resultaat</b> laat zien waar de bestanden terechtkomen, en waarschuwt als iets op een onverwachte plek
+      zou belanden.</li>
+    <li>Je stelt de rechten voor mappen en bestanden in, en of bestaande bestanden worden overschreven of bewaard.</li>
+    <li>Via SFTP wordt de zip op de server zelf uitgepakt; via FTP wordt hij op je computer uitgepakt en worden de
+      bestanden geüpload.</li>
+  </ul>
+  <h3>Uitrollen</h3>
+  <figure><img data-shot="deploy" alt=""><figcaption>Uitrollen: zet met één klik een nieuwe versie van je site online.</figcaption></figure>
+  <p><b>Uitrollen</b> uploadt een zip (een vast bestand, of de nieuwste zip in een map, zoals
+    <code>site-update_*.zip</code>) en pakt hem uit in een map op de server, als je wilt na een back-up van die map.
+    Klik op <b>Opslaan bij de site</b>, dan is het de volgende keer één klik.</p>
+</section>
+
+<section id="settings">
+  <h2>Instellingen</h2>
+  <p>Klik rechtsboven op het <b>tandwiel</b>.</p>
+  <figure><img data-shot="settings" alt=""><figcaption>Het venster Instellingen.</figcaption></figure>
+  <ul>
+    <li><b>Algemeen:</b> de taal (ook met de vlaggetjes bovenaan) en of FileBridge naar updates kijkt.</li>
+    <li><b>Filters:</b> namen zoals <code>.DS_Store</code> en <code>node_modules</code> die worden verborgen en nooit
+      worden overgezet (jokertekens mogen).</li>
+    <li><b>Overdrachten:</b> de maximale upload- en downloadsnelheid.</li>
+    <li><b>Bekijken/bewerken:</b> de editor die bestanden opent, en of bewerkte bestanden zonder te vragen worden
+      geüpload.</li>
+    <li><b>Handleiding:</b> deze handleiding. Je vindt hem ook onder <b>Handleiding</b> onderaan het venster.</li>
+  </ul>
+</section>
+
+<section id="updates">
+  <h2>Updates en afsluiten</h2>
+  <ul>
+    <li>FileBridge kijkt bij het starten en elke paar uur of er een nieuwe versie is. Je krijgt één keer een melding met
+      wat er nieuw is, en onderaan blijft <b>Update beschikbaar</b> staan. Download de nieuwe versie en vervang de app;
+      je sites en wachtwoorden blijven bewaard.</li>
+    <li>De <b>aan-/uitknop</b> rechtsboven sluit FileBridge. Worden er nog bestanden overgezet, of zijn bewerkte
+      bestanden nog niet geüpload, dan vraagt hij het eerst.</li>
+  </ul>
+</section>
+
+<section id="plugins">
+  <h2>Plugins</h2>
+  <p>Onder <b>Plugins ▾</b> en in het rechtsklikmenu vind je extra acties, zoals <i>Calculate size</i>, <i>Find files
+    by name</i> en <i>Zip selected items</i>. Je kunt er zelf bij maken: elk Python-bestand in de pluginmap voegt acties
+    toe. <b>Plugins ▾ → Pluginmap openen</b> laat zien waar die staat, en het sjabloon daarin legt alles uit. Kies
+    <b>Plugins opnieuw laden</b> na een wijziging; opnieuw starten hoeft niet.</p>
+</section>
+
+<section id="privacy">
+  <h2>Je gegevens en veiligheid</h2>
+  <ul>
+    <li>Je sites worden op je eigen computer bewaard, in de map <code>.filebridge</code> in je thuismap; wachtwoorden
+      staan in de wachtwoordopslag van je computer. Er gaat niets naar elders.</li>
+    <li>FileBridge werkt alleen op je eigen computer: andere websites en computers kunnen er niet bij.</li>
+    <li>De eerste keer dat je met een SFTP-server verbindt, onthoudt FileBridge zijn sleutel. Verandert die sleutel ooit,
+      dan weigert FileBridge de verbinding en waarschuwt je, want dan kan iemand de verbinding onderscheppen.</li>
+    <li>De apps zijn ondertekend: <span data-os="mac">genotariseerd door Apple, zodat macOS FileBridge zonder
+      waarschuwing opent</span><span data-os="win">door DataLore, zodat Windows DataLore als uitgever toont</span><span
+      data-os="linux">bij de downloads horen controlesommen en een GPG-handtekening</span>.</li>
+  </ul>
+</section>
