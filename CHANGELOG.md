@@ -3,6 +3,9 @@
 What changed in each FileBridge version. The section of a version is also the text of its GitHub release
 and of the update notice in the app, so keep it short and written for users.
 
+## 1.3.1
+- New FileBridge logo and app icon: two arrows, one each way, in the DataLore colours.
+
 ## 1.3.0
 - FileBridge is now available in **English, Dutch and Spanish**: switch with the flags at the top right.
 - A **user manual** with pictures in all three languages: **Manual** at the bottom of the window, or Settings → User manual.
