@@ -4,7 +4,8 @@ What changed in each FileBridge version. The section of a version is also the te
 and of the update notice in the app, so keep it short and written for users.
 
 ## 1.3.1
-- New FileBridge logo and app icon: two arrows, one each way, in the DataLore colours.
+- New FileBridge app icon: two slender green arrows, one each way, sunk into a white icon with a thin green frame.
+- The logo in the app shows the same two arrows.
 
 ## 1.3.0
 - FileBridge is now available in **English, Dutch and Spanish**: switch with the flags at the top right.

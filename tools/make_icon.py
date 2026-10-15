@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Draw the FileBridge app icon (two arrows, one each way, in DataLore green on the DataLore ink square) and write
+"""Draw the FileBridge app icon (two thin green arrows, sunk into a white rounded square with a green frame) and write
 build/icon.{png,ico,icns} and static/icon.{png,ico}. Run on a Mac: .venv/bin/python tools/make_icon.py
 
 The arrows are the same mark as in the interface and on datalore.eu (24-unit grid):
@@ -7,47 +7,67 @@ The arrows are the same mark as in the interface and on datalore.eu (24-unit gri
 """
 import os
 import subprocess
+import sys
 import tempfile
 
 from PIL import Image, ImageDraw
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-INK, GREEN = '#131410', '#7BC94C'   # DataLore ink and bright green
+
 SS = 4                               # drawn four times as large, then scaled down for smooth edges
 SIZE = 1024 * SS
 
 
 def draw():
-    img = Image.new('RGBA', (SIZE, SIZE), (0, 0, 0, 0))
-    d = ImageDraw.Draw(img)
-    # the macOS icon grid: an 824-point rounded square in a 1024 canvas
-    m, r = 100 * SS, 185 * SS
-    d.rounded_rectangle([m, m, SIZE - m, SIZE - m], radius=r, fill=INK)
-    # the arrows, 24-unit grid scaled up and centred (the mark spans x 4–20, y 3–21)
-    s = 26 * SS
-    ox, oy = SIZE / 2 - 12 * s, SIZE / 2 - 12 * s
-    width = round(2.1 * s)
-    gap = 0.9  # the two arrows a little further apart than in the small mark, so the heads don't touch
+    """White rounded square with a thin green frame and the two arrows, sunk into the icon (the AccountBridge style)."""
+    from PIL import ImageChops, ImageFilter
+    S = 1024
+    im = Image.new('RGBA', (S, S), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    d.rounded_rectangle((40, 40, S - 40, S - 40), radius=215, fill='#FFFFFF')
+    d.rounded_rectangle((40, 40, S - 40, S - 40), radius=215, outline='#2E9E5B', width=7)
+    d.rounded_rectangle((70, 70, S - 70, S - 70), radius=190, outline='#CFE8D8', width=3)
+    # the arrows as a mask: thin, slender lines, about 60% of the icon high, drawn large for smooth edges
+    big = S * SS
+    mask = Image.new('L', (big, big), 0)
+    md = ImageDraw.Draw(mask)
+    unit = 0.6 * big / 18          # the mark is 18 units high (y 3-21) on its 24-unit grid
+    ox, oy = big / 2 - 12 * unit, big / 2 - 12 * unit
+    width = round(0.95 * unit)     # a thin line, like Helvetica Neue Light
 
     def line(points):
-        pts = [(ox + x * s, oy + y * s) for x, y in points]
-        d.line(pts, fill=GREEN, width=width, joint='curve')
-        for x, y in (pts[0], pts[-1]):  # round caps
-            d.ellipse([x - width / 2, y - width / 2, x + width / 2, y + width / 2], fill=GREEN)
-        for x, y in pts[1:-1]:          # round joins
-            d.ellipse([x - width / 2, y - width / 2, x + width / 2, y + width / 2], fill=GREEN)
+        pts = [(ox + x * unit, oy + y * unit) for x, y in points]
+        md.line(pts, fill=255, width=width, joint='curve')
+        for x, y in pts:           # round caps and joins
+            md.ellipse([x - width / 2, y - width / 2, x + width / 2, y + width / 2], fill=255)
 
-    up = lambda pts: [(x, y - gap) for x, y in pts]
-    down = lambda pts: [(x, y + gap) for x, y in pts]
-    line(up([(4, 7), (17, 7)]))
-    line(up([(13, 3), (17, 7), (13, 11)]))
-    line(down([(20, 17), (7, 17)]))
-    line(down([(11, 13), (7, 17), (11, 21)]))
-    return img.resize((1024, 1024), Image.LANCZOS)
+    line([(4, 7), (17, 7)])
+    line([(13, 3), (17, 7), (13, 11)])
+    line([(20, 17), (7, 17)])
+    line([(11, 13), (7, 17), (11, 21)])
+    mask = mask.resize((S, S), Image.LANCZOS)
+    # sunk in: flat green with a soft gradient, a dark green shadow inside along the top edge, a light shine under the bottom edge
+    gradient = Image.new('RGBA', (S, S))
+    gd = ImageDraw.Draw(gradient)
+    for yy in range(S):
+        t = yy / S
+        gd.line((0, yy, S, yy), fill=(int(70 - 25 * t), int(185 - 45 * t), int(105 - 30 * t), 255))
+    im.paste(gradient, (0, 0), mask)
+    shine = ImageChops.subtract(ImageChops.offset(mask, 0, 6), mask).filter(ImageFilter.GaussianBlur(2))
+    im.paste(Image.new('RGBA', (S, S), (150, 200, 170, 255)), (0, 0), shine.point(lambda v: int(v * 0.8)))
+    inner = ImageChops.subtract(mask, ImageChops.offset(mask, 0, 10)).filter(ImageFilter.GaussianBlur(5))
+    inner = ImageChops.multiply(inner, mask.filter(ImageFilter.GaussianBlur(1)))
+    im.paste(Image.new('RGBA', (S, S), (8, 60, 30, 255)), (0, 0), inner.point(lambda v: min(255, int(v * 1.3))))
+    return im
 
 
 def main():
     icon = draw()
+    if '--preview' in sys.argv:  # only show it: write a picture next to the build folder, change nothing
+        out = os.path.join(ROOT, 'build', 'icon-preview.png')
+        icon.save(out)
+        print('preview:', out)
+        return
     for path in ('build/icon.png', 'static/icon.png'):
         icon.save(os.path.join(ROOT, path))
     for path in ('build/icon.ico', 'static/icon.ico'):
