@@ -590,3 +590,12 @@ th.c-type { width: 104px; }  /* room for "TXT-bestand" / "Archivo TXT" */
 /* Extract zip: the whole contents of the zip, scrollable */
 .zip-list { max-height: 240px; overflow: auto; margin-top: 6px; padding-right: 6px; font-size: 12px; line-height: 1.7; }
 .zip-list .mono { white-space: nowrap; }
+.log-bar { position: sticky; top: 0; z-index: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 0 8px; background: var(--panel); font-family: var(--font, inherit); }
+.log-levels { display: flex; flex-wrap: wrap; gap: 6px; }
+.log-levels .chip { font-size: 12px; padding: 2px 10px; background: transparent; }
+.log-levels .chip .n { color: var(--muted); margin-left: 3px; font-variant-numeric: tabular-nums; }
+.log-levels .chip.lv-error .n { color: var(--danger); }
+.log-levels .chip.lv-warn .n { color: var(--warn); }
+.log-levels .chip.on { border-color: var(--dl-green, #5FA83D); box-shadow: 0 0 0 2px rgba(95, 168, 61, .35); }
+#logSearch { margin-left: auto; width: 220px; max-width: 100%; }
+.log-none { padding: 8px 0; font-family: inherit; }

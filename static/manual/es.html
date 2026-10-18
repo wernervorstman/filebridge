@@ -96,7 +96,8 @@
     <b>Transferencia</b>).</p>
   <p class="tip">Todo lo que hace FileBridge se guarda también en un archivo de registro: <code>filebridge.log</code> en la
     carpeta <code>.filebridge</code> de tu carpeta personal. Así puedes consultar un problema incluso después de cerrar
-    FileBridge. <b>Mostrar el archivo de registro</b> en la ventana <b>¿Qué ha fallado?</b> lo abre.</p>
+    FileBridge. <b>Mostrar el archivo de registro</b> en la ventana <b>¿Qué ha fallado?</b> lo abre. En la pestaña <b>Registro</b>,
+    haz clic en <b>Errores</b>, <b>Avisos</b>, <b>Hecho</b> o <b>Info</b> para ver solo esas líneas, o escribe en el buscador.</p>
   <p class="tip">¿Subes a una carpeta web pública como <code>public_html</code>? FileBridge te avisa de archivos que
     cualquiera podría descargar después, como zips, copias de bases de datos (<code>.sql</code>), copias de seguridad y
     archivos <code>.env</code>. Elige <b>Omitir estos archivos</b> o <b>Subir de todos modos</b>.</p>
@@ -181,6 +182,8 @@
       del zip.</li>
     <li>El <b>Resultado</b> muestra cada archivo del zip y dónde acaba y te avisa si algo iría a un sitio inesperado.</li>
     <li>Tú eliges los permisos de carpetas y archivos, y si los archivos existentes se sobrescriben o se conservan.</li>
+    <li>Si dejas que FileBridge elimine el zip después, solo lo hace cuando se han extraído todos los archivos; si no,
+      el zip se queda, para que puedas volver a intentarlo.</li>
     <li>Por SFTP el zip se descomprime en el propio servidor; por FTP se descomprime en tu ordenador y se suben los
       archivos.</li>
   </ul>

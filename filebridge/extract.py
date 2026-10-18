@@ -87,8 +87,14 @@ def run(job, remote, sftp, *, dest, zip_local=None, zip_remote=None, into_folder
         how = transfer.summary(counts, 'upload')
 
     if delete_zip and zip_remote:
-        sftp.remove(zip_remote)
-        how += '; ' + tr('zip deleted')
+        if job.failed:  # something went wrong: keep the zip, so the extract can be done again
+            how += '; ' + tr('zip kept because not every file could be extracted')
+        else:
+            try:
+                sftp.remove(zip_remote)
+                how += '; ' + tr('zip deleted')
+            except OSError:
+                pass  # already gone
     msg = tr('Extracted {name} into {target}: {how}.', name=zip_name, target=target, how=how)
     job.log(msg, 'ok')
     return {'message': msg}

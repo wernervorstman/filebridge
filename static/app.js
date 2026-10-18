@@ -1198,16 +1198,36 @@ $('#queue').addEventListener('click', e => {
 });
 $('#btnClearJobs').onclick = () => api('jobs_clear').then(kickPoll);
 
-let lastLogLen = -1;
-function renderLog(log) {
+// The log, with a filter on status (errors, warnings, done, info) and a search box
+let lastLogLen = -1, logData = [];
+const LOG_LEVELS = [['all', 'All'], ['error', 'Errors'], ['warn', 'Warnings'], ['ok', 'Done'], ['info', 'Info']];
+let logLevel = store.get('logLevel', 'all');
+function renderLog(log, force = false) {
   const key = log.length + (log.at(-1)?.msg || '');
-  if (key === lastLogLen) return;
+  if (key === lastLogLen && !force) return;
   lastLogLen = key;
+  logData = log;
+  const counts = { all: log.length };
+  for (const l of log) counts[l.level] = (counts[l.level] || 0) + 1;
+  $('#logLevels').innerHTML = LOG_LEVELS.map(([k, label]) =>
+    `<button type="button" class="chip lv-${k} ${k === logLevel ? 'on' : ''}" data-level="${k}">${esc(t(label))} <span class="n">${counts[k] || 0}</span></button>`).join('');
+  const words = ($('#logSearch').value || '').toLowerCase().split(/\s+/).filter(Boolean);
+  const shown = log.filter(l => (logLevel === 'all' || l.level === logLevel) && words.every(w => l.msg.toLowerCase().includes(w)));
   const el = $('#log');
   const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 20;
-  el.innerHTML = log.map(l => `<div class="l-${l.level}"><span class="t">${l.t}</span>${esc(l.msg)}</div>`).join('');
-  if (atBottom) el.scrollTop = el.scrollHeight;
+  $('#logLines').innerHTML = shown.length
+    ? shown.map(l => `<div class="l-${l.level}"><span class="t">${l.t}</span>${esc(l.msg)}</div>`).join('')
+    : `<div class="muted log-none">${esc(t('Nothing in the log matches this filter.'))}</div>`;
+  if (atBottom || force) el.scrollTop = el.scrollHeight;
 }
+$('#logLevels').addEventListener('click', e => {
+  const b = e.target.closest('[data-level]');
+  if (!b) return;
+  logLevel = b.dataset.level;
+  store.set('logLevel', logLevel);
+  renderLog(logData, true);
+});
+$('#logSearch').addEventListener('input', () => renderLog(logData, true));
 $$('.tab').forEach(t => t.onclick = () => {
   $$('.tab').forEach(x => x.classList.toggle('active', x === t));
   $('#queue').hidden = t.dataset.tab !== 'queue';

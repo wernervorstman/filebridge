@@ -94,7 +94,8 @@
     go at the same time (3 by default; per site under <b>Transfer Settings</b>).</p>
   <p class="tip">Everything FileBridge does is also written to a log file, <code>filebridge.log</code> in the folder
     <code>.filebridge</code> in your home folder, so you can still look up a problem after closing FileBridge.
-    <b>Show log file</b> in the <b>What went wrong?</b> window opens it.</p>
+    <b>Show log file</b> in the <b>What went wrong?</b> window opens it. In the <b>Log</b> tab, click <b>Errors</b>,
+    <b>Warnings</b>, <b>Done</b> or <b>Info</b> to see only those lines, or type in the search box.</p>
   <p class="tip">Uploading to a public web folder such as <code>public_html</code>? FileBridge warns you about files
     that anyone could then download, such as zips, database dumps (<code>.sql</code>), backups and <code>.env</code>
     files. Choose <b>Skip these files</b> or <b>Upload anyway</b>.</p>
@@ -175,6 +176,8 @@
     <li>The <b>Result</b> preview lists every file in the zip and where it ends up and warns you when something would go to an unexpected
       place.</li>
     <li>You set the permissions for folders and files, and whether existing files are overwritten or kept.</li>
+    <li>If you let FileBridge delete the zip afterwards, it only does so when every file was extracted; otherwise the
+      zip stays, so you can try again.</li>
     <li>Over SFTP the zip is unpacked on the server itself; over FTP it is unpacked on your computer and the files are
       uploaded.</li>
   </ul>

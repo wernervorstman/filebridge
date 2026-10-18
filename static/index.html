@@ -65,7 +65,13 @@
     <button id="btnClearJobs" class="small" data-t="Clear finished">Clear finished</button>
   </div>
   <div id="queue" class="tabpane"></div>
-  <div id="log" class="tabpane" hidden></div>
+  <div id="log" class="tabpane" hidden>
+    <div class="log-bar" id="logBar">
+      <div class="log-levels" id="logLevels"></div>
+      <input id="logSearch" type="search" data-t-ph="Search the log" placeholder="Search the log" spellcheck="false">
+    </div>
+    <div id="logLines"></div>
+  </div>
   <div id="edits" class="tabpane" hidden></div>
 </section>
 

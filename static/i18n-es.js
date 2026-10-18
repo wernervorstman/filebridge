@@ -544,4 +544,10 @@ Object.assign(ES, {
   "Click Retry in the queue to try only these files again. Everything is also written to the log file: {path}": "Haz clic en Reintentar en la cola para volver a probar solo estos archivos. Todo se guarda también en el archivo de registro: {path}",
   "Show log file": "Mostrar el archivo de registro",
   "\u2026 and {n} more": "… y {n} más",
+  "All": "Todo",
+  "Errors": "Errores",
+  "Warnings": "Avisos",
+  "Info": "Info",
+  "Search the log": "Buscar en el registro",
+  "Nothing in the log matches this filter.": "Nada en el registro coincide con este filtro.",
 });

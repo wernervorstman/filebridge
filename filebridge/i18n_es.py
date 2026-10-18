@@ -249,4 +249,8 @@ ES = {
         'No hay permiso para escribir este archivo: la carpeta (o el archivo que ya está ahí) no lo permite. Comprueba los permisos de la carpeta, por ejemplo con Permisos en el lado del servidor.',
     '{name}: {error} – trying again on a new connection ({n} of {max})':
         '{name}: {error} – se reintenta con una conexión nueva ({n} de {max})',
+    'zip kept because not every file could be extracted':
+        'zip conservado porque no se pudieron extraer todos los archivos',
+    'This zip is already being extracted. Wait until that is finished.':
+        'Este zip ya se está extrayendo. Espera a que termine.',
 }

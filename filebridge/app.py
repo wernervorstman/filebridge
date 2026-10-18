@@ -641,9 +641,16 @@ class App:
             delete_zip=bool(b.get('delete_zip')) and not local,
             method=b.get('method') if b.get('method') in ('auto', 'server', 'local') else 'auto',
             **({'zip_local': localfs.norm(zp)} if local else {'zip_remote': zp}))
+        key = ('local:' if local else 'remote:') + zp
+        busy = [j for j in self.jobs.jobs.values()
+                if j.kind == 'extract' and j.status in ('queued', 'running') and getattr(j, 'zip_key', None) == key]
+        if busy:
+            raise ApiError(tr('This zip is already being extracted. Wait until that is finished.'))
         name = os.path.basename(zp)
-        return self._job('extract', tr('Upload & extract {name} → {dest}' if local else 'Extract {name} → {dest}', name=name, dest=dest),
+        job_ref = self._job('extract', tr('Upload & extract {name} → {dest}' if local else 'Extract {name} → {dest}', name=name, dest=dest),
                          lambda job, sftp: extract.run(job, r, sftp, **kwargs), ['remote'])
+        self.jobs.get(job_ref['job_id']).zip_key = key
+        return job_ref
 
     # --- deploy ---
     def api_deploy_preview(self, b):

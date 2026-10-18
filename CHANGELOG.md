@@ -3,6 +3,11 @@
 What changed in each FileBridge version. The section of a version is also the text of its GitHub release
 and of the update notice in the app, so keep it short and written for users.
 
+## 1.3.2
+- Extract zip: the zip is only deleted afterwards when every file was extracted; otherwise it stays, so you can try again.
+- The same zip can't be extracted twice at the same time any more.
+- Log: show only errors, warnings, done or info lines, and search the log.
+
 ## 1.3.1
 - New FileBridge app icon: two slender green arrows, one each way, sunk into a white icon with a thin green frame.
 - The logo in the app shows the same two arrows.

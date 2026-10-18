@@ -249,4 +249,8 @@ NL = {
         'Geen toestemming om dit bestand te schrijven: de map (of het bestand dat er al staat) staat het niet toe. Controleer de rechten van de map, bijvoorbeeld met Rechten aan de serverkant.',
     '{name}: {error} – trying again on a new connection ({n} of {max})':
         '{name}: {error} – opnieuw proberen via een nieuwe verbinding ({n} van {max})',
+    'zip kept because not every file could be extracted':
+        'zip bewaard omdat niet elk bestand kon worden uitgepakt',
+    'This zip is already being extracted. Wait until that is finished.':
+        'Deze zip wordt al uitgepakt. Wacht tot dat klaar is.',
 }
