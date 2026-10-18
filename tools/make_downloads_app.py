@@ -47,10 +47,13 @@ def main():
                            'LSMinimumSystemVersion': '13.0', 'NSHighResolutionCapable': True,
                            'NSHumanReadableCopyright': '© DataLore'}, f)
         subprocess.run(['codesign', '--force', '--deep', '-s', '-', app], check=True)
+        # an older copy that is still running would keep showing (on its own Space) instead of the new one
+        subprocess.run(['pkill', '-x', 'FileBridgeDownloads'], check=False)
         if os.path.exists(TARGET):
             shutil.rmtree(TARGET)
         shutil.copytree(app, TARGET, symlinks=True)
-    print('Built:', TARGET)
+    subprocess.run(['open', TARGET], check=False)
+    print('Built and opened:', TARGET)
 
 
 if __name__ == '__main__':

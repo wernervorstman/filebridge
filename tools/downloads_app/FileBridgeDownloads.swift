@@ -25,6 +25,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         window.title = "FileBridge Downloads"
         window.contentView = web
         window.setFrameAutosaveName("FileBridgeDownloadsWindow")
+        window.collectionBehavior = [.moveToActiveSpace]   // open on the Space you are on, not on an old one
         window.center()
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
@@ -34,6 +35,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ s: NSApplication) -> Bool { true }
+
+    // opened again (Dock, Launchpad, Finder) while it is already running: show the window here and refresh
+    func applicationShouldHandleReopen(_ s: NSApplication, hasVisibleWindows: Bool) -> Bool {
+        window.makeKeyAndOrderFront(nil)
+        if pageReady { update() }
+        return true
+    }
 
     // MARK: page
     func webView(_ w: WKWebView, didFinish nav: WKNavigation!) {
