@@ -18,8 +18,13 @@ SS = 4                               # drawn four times as large, then scaled do
 SIZE = 1024 * SS
 
 
-def draw():
-    """White rounded square with a thin green frame and the two arrows, sunk into the icon (the AccountBridge style)."""
+ARROWS = [[(4, 7), (17, 7)], [(13, 3), (17, 7), (13, 11)], [(20, 17), (7, 17)], [(11, 13), (7, 17), (11, 21)]]
+CHART = [[(4, 20), (20, 20)], [(7, 16), (7, 12)], [(12, 16), (12, 4)], [(17, 16), (17, 9)]]  # FileBridge Downloads
+
+
+def draw(strokes=ARROWS):
+    """White rounded square with a thin green frame and a symbol (lines on a 24-unit grid, 18 units high),
+    sunk into the icon (the AccountBridge style). Default: the two FileBridge arrows."""
     from PIL import ImageChops, ImageFilter
     S = 1024
     im = Image.new('RGBA', (S, S), (0, 0, 0, 0))
@@ -41,10 +46,8 @@ def draw():
         for x, y in pts:           # round caps and joins
             md.ellipse([x - width / 2, y - width / 2, x + width / 2, y + width / 2], fill=255)
 
-    line([(4, 7), (17, 7)])
-    line([(13, 3), (17, 7), (13, 11)])
-    line([(20, 17), (7, 17)])
-    line([(11, 13), (7, 17), (11, 21)])
+    for stroke in strokes:
+        line(stroke)
     mask = mask.resize((S, S), Image.LANCZOS)
     # sunk in: flat green with a soft gradient, a dark green shadow inside along the top edge, a light shine under the bottom edge
     gradient = Image.new('RGBA', (S, S))

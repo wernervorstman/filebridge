@@ -141,6 +141,9 @@ static/                interface (HTML/CSS/JS, no build step)
 static/i18n*.js        interface texts: t('English text') + Dutch and Spanish dictionaries
 static/manual/         user manual (en/nl/es.html) and its pictures (img/<language>/)
 tools/manual_shots.py  makes the manual pictures (macOS, off screen, with example data)
+tools/make_icon.py     draws the app icon (build/icon.*, static/icon.*)
+tools/download_counts.py  download counts of the releases from the GitHub API (installers only)
+tools/downloads_app/   FileBridge Downloads, a small Mac app with the download counts (make_downloads_app.py)
 tests/fake_sftp.py     a small local SFTP server for tests and the manual pictures
 plugins/               your extensions
 ```
@@ -155,6 +158,15 @@ Add a new text to both dictionaries.
 When a feature changes, update `static/manual/en.html`, `nl.html` and `es.html`, and run
 `.venv/bin/python tools/manual_shots.py` to make the pictures again. It starts FileBridge with a throwaway home
 folder, made-up example files and a local test SFTP server, so the pictures never show real servers.
+
+### Download counts
+
+`python3 tools/download_counts.py` prints how often each release was downloaded (only the installers, not the
+checksums), from the public GitHub API. `.venv/bin/python tools/make_downloads_app.py` builds the Mac app
+**FileBridge Downloads** in /Applications: it shows the totals per platform, per release and over time, refreshes
+when it opens (or with ⌘R) and keeps one snapshot per day in
+`~/Library/Application Support/FileBridge Downloads/history.json`. `download_counts.py --history` adds to that
+file too, so a daily task can keep the history going while the app is closed.
 
 ## Verifying a download
 
