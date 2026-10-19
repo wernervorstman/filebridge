@@ -156,11 +156,47 @@ window.fbRender = (history, state) => {
 document.addEventListener('keydown', e => {
   if ((e.metaKey || e.ctrlKey) && e.key === 'r') { e.preventDefault(); refresh(); }
 });
+const inApp = !!window.webkit?.messageHandlers?.refresh;
 function refresh() {
   $('stamp').textContent = 'Bijwerken…';
-  window.webkit?.messageHandlers?.refresh?.postMessage('refresh');
+  if (inApp) window.webkit.messageHandlers.refresh.postMessage('refresh');
+  else browserUpdate();
 }
 $('stamp').addEventListener('click', refresh);
+
+// Opened on its own in a browser (not in the app): ask GitHub directly and keep a history in this browser
+const KIND = { '.dmg': 'mac', '.exe': 'win', '.tar.gz': 'linux' };
+function snapshot(releases) {
+  const rels = releases.map(rel => {
+    const c = { mac: 0, win: 0, linux: 0 };
+    for (const a of rel.assets || []) {
+      const k = Object.entries(KIND).find(([ext]) => a.name.endsWith(ext));
+      if (k) c[k[1]] += a.download_count || 0;
+    }
+    return { tag: rel.tag_name, published: rel.published_at, ...c };
+  });
+  const now = new Date(), t = { mac: 0, win: 0, linux: 0 };
+  for (const r of rels) for (const k in t) t[k] += r[k];
+  const date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  return { date, taken_at: now.toISOString(), total: t.mac + t.win + t.linux, ...t, releases: rels };
+}
+function loadLocal() { try { return JSON.parse(localStorage.getItem('fb.history') || '[]'); } catch { return []; } }
+async function browserUpdate() {
+  let history = loadLocal();
+  try {
+    const r = await fetch('https://api.github.com/repos/wernervorstman/filebridge/releases?per_page=100',
+                          { headers: { Accept: 'application/vnd.github+json' } });
+    if (!r.ok) throw new Error(r.status);
+    const snap = snapshot(await r.json());
+    history = history.filter(s => s.date !== snap.date).concat([snap]);
+    try { localStorage.setItem('fb.history', JSON.stringify(history)); } catch {}
+    window.fbRender(history, null);
+  } catch (e) {
+    if (history.length) window.fbRender(history, null);
+    $('stamp').textContent = 'GitHub is nu niet bereikbaar. Klik hier om het opnieuw te proberen.';
+  }
+}
+if (!inApp) browserUpdate();
 </script>
 
 </body></html>
