@@ -63,7 +63,7 @@ h2 { font: 800 14px/1.2 var(--display); text-transform: uppercase; letter-spacin
 <div class="wrap">
   <header>
     <h1>FileBridge <span class="mark">downloads</span></h1>
-    <button type="button" class="stamp" id="stamp" title="Klik om nu bij te werken (⌘R)">Gegevens laden…</button>
+    <button type="button" class="stamp" id="stamp" title="Klik om nu bij te werken">Gegevens laden…</button>
   </header>
 
   <section class="tiles" aria-label="Totalen">
@@ -86,9 +86,10 @@ h2 { font: 800 14px/1.2 var(--display); text-transform: uppercase; letter-spacin
 
   <p class="note">Telt elke download van de installatiebestanden op GitHub, ook via de knoppen op datalore.eu. Checksums en
     handtekeningen tellen niet mee. <b>Let op:</b> tot en met v1.3.0 zitten hier ook controle-downloads van DataLore zelf
-    tussen (ongeveer 2 per versie). De app werkt de cijfers bij als je hem opent; klik rechtsboven of druk op ⌘R om nu bij te werken.</p>
+    tussen (ongeveer 2 per versie). De pagina haalt de nieuwste cijfers op als je hem opent of ververst; de dagelijkse taak houdt de geschiedenis bij (history.js in deze map).</p>
 </div>
 
+<script src="history.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 const nf = new Intl.NumberFormat('nl-NL');
@@ -148,23 +149,8 @@ function renderReleases(rels) {
   }).join('');
 }
 
-// The FileBridge Downloads app hands over its history (one snapshot per day) and the state of the last update
-window.fbRender = (history, state) => {
-  render(history.map(x => ({ ...x })));
-  if (state && state.error) $('stamp').textContent = state.error;
-};
-document.addEventListener('keydown', e => {
-  if ((e.metaKey || e.ctrlKey) && e.key === 'r') { e.preventDefault(); refresh(); }
-});
-const inApp = !!window.webkit?.messageHandlers?.refresh;
-function refresh() {
-  $('stamp').textContent = 'Bijwerken…';
-  if (inApp) window.webkit.messageHandlers.refresh.postMessage('refresh');
-  else browserUpdate();
-}
-$('stamp').addEventListener('click', refresh);
-
-// Opened on its own in a browser (not in the app): ask GitHub directly and keep a history in this browser
+// The history (one snapshot per day) comes from history.js next to this page, written every day by
+// tools/download_counts.py --history. On top of that the page asks GitHub for today's numbers when it opens.
 const KIND = { '.dmg': 'mac', '.exe': 'win', '.tar.gz': 'linux' };
 function snapshot(releases) {
   const rels = releases.map(rel => {
@@ -180,23 +166,35 @@ function snapshot(releases) {
   const date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   return { date, taken_at: now.toISOString(), total: t.mac + t.win + t.linux, ...t, releases: rels };
 }
-function loadLocal() { try { return JSON.parse(localStorage.getItem('fb.history') || '[]'); } catch { return []; } }
-async function browserUpdate() {
-  let history = loadLocal();
+function merge(...lists) {  // one snapshot per day, the newest one wins
+  const byDate = {};
+  for (const s of lists.flat()) {
+    const old = byDate[s.date];
+    if (!old || (s.taken_at || '') > (old.taken_at || '')) byDate[s.date] = s;
+  }
+  return Object.values(byDate);
+}
+function loadLocal() { try { return JSON.parse(localStorage.getItem('fb.today') || '[]'); } catch { return []; } }
+let history = merge(window.FB_HISTORY || [], loadLocal());
+if (history.length) render(history.map(x => ({ ...x })));
+
+async function update() {
+  $('stamp').textContent = 'Bijwerken…';
   try {
     const r = await fetch('https://api.github.com/repos/wernervorstman/filebridge/releases?per_page=100',
                           { headers: { Accept: 'application/vnd.github+json' } });
     if (!r.ok) throw new Error(r.status);
     const snap = snapshot(await r.json());
-    history = history.filter(s => s.date !== snap.date).concat([snap]);
-    try { localStorage.setItem('fb.history', JSON.stringify(history)); } catch {}
-    window.fbRender(history, null);
+    history = merge(history, [snap]);
+    try { localStorage.setItem('fb.today', JSON.stringify([snap])); } catch {}
+    render(history.map(x => ({ ...x })));
   } catch (e) {
-    if (history.length) window.fbRender(history, null);
-    $('stamp').textContent = 'GitHub is nu niet bereikbaar. Klik hier om het opnieuw te proberen.';
+    if (history.length) render(history.map(x => ({ ...x })));
+    $('stamp').textContent = 'GitHub is nu niet bereikbaar; je ziet de laatst bekende cijfers. Klik om het opnieuw te proberen.';
   }
 }
-if (!inApp) browserUpdate();
+$('stamp').addEventListener('click', update);
+update();
 </script>
 
 </body></html>

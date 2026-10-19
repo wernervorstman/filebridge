@@ -3,7 +3,7 @@
 
     python3 tools/download_counts.py              # prints the snapshot
     python3 tools/download_counts.py out.json     # also writes it to a file
-    python3 tools/download_counts.py --history    # also adds it to the history of the FileBridge Downloads app
+    python3 tools/download_counts.py --history    # also adds it to the local dashboard in ~/Documents/FileBridge Downloads
 
 Counts only the installers (.dmg, .exe, .tar.gz), not checksums or signatures. Uses the public GitHub API
 (no login needed; at most 60 requests per hour per address, this makes one).
@@ -11,11 +11,14 @@ Counts only the installers (.dmg, .exe, .tar.gz), not checksums or signatures. U
 import datetime
 import json
 import os
+import shutil
 import sys
 import urllib.request
 
-# The history of the FileBridge Downloads app (one snapshot per day), shared with that app
-HISTORY = os.path.expanduser('~/Library/Application Support/FileBridge Downloads/history.json')
+# The local dashboard: a page to open in the browser, with its history (one snapshot per day) next to it
+DASHBOARD_DIR = os.path.expanduser('~/Documents/FileBridge Downloads')
+HISTORY = os.path.join(DASHBOARD_DIR, 'history.json')
+PAGE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'downloads-dashboard-local.html')
 
 API = 'https://api.github.com/repos/wernervorstman/filebridge/releases?per_page=100'
 KIND = {'.dmg': 'mac', '.exe': 'win', '.tar.gz': 'linux'}
@@ -53,6 +56,11 @@ def add_to_history(snap, path=HISTORY):
     with open(tmp, 'w') as f:
         json.dump(history, f, indent=1)
     os.replace(tmp, path)
+    # the page reads the history as a script (a browser may not read a JSON file next to a local page)
+    folder = os.path.dirname(path)
+    with open(os.path.join(folder, 'history.js'), 'w') as f:
+        f.write('window.FB_HISTORY = ' + json.dumps(history) + ';\n')
+    shutil.copy(PAGE, os.path.join(folder, 'FileBridge Downloads.html'))
 
 
 if __name__ == '__main__':

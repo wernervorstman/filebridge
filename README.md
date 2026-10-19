@@ -143,7 +143,7 @@ static/manual/         user manual (en/nl/es.html) and its pictures (img/<langua
 tools/manual_shots.py  makes the manual pictures (macOS, off screen, with example data)
 tools/make_icon.py     draws the app icon (build/icon.*, static/icon.*)
 tools/download_counts.py  download counts of the releases from the GitHub API (installers only)
-tools/downloads_app/   FileBridge Downloads, a small Mac app with the download counts (make_downloads_app.py)
+tools/downloads-dashboard-local.html  a page with the download counts, to open in your browser
 tests/fake_sftp.py     a small local SFTP server for tests and the manual pictures
 plugins/               your extensions
 ```
@@ -162,11 +162,10 @@ folder, made-up example files and a local test SFTP server, so the pictures neve
 ### Download counts
 
 `python3 tools/download_counts.py` prints how often each release was downloaded (only the installers, not the
-checksums), from the public GitHub API. `.venv/bin/python tools/make_downloads_app.py` builds the Mac app
-**FileBridge Downloads** in /Applications: it shows the totals per platform, per release and over time, refreshes
-when it opens (or with ⌘R) and keeps one snapshot per day in
-`~/Library/Application Support/FileBridge Downloads/history.json`. `download_counts.py --history` adds to that
-file too, so a daily task can keep the history going while the app is closed.
+checksums), from the public GitHub API. `python3 tools/download_counts.py --history` adds that day's numbers to a local dashboard in
+`~/Documents/FileBridge Downloads`: open `FileBridge Downloads.html` there in your browser (and bookmark it). It shows
+the totals per platform, per release and over time; the history (one snapshot per day) is in `history.js` next to it,
+and every time you open or reload the page it asks GitHub for the newest numbers.
 
 ## Verifying a download
 
