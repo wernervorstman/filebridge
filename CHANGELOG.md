@@ -3,6 +3,9 @@
 What changed in each FileBridge version. The section of a version is also the text of its GitHub release
 and of the update notice in the app, so keep it short and written for users.
 
+## 1.3.3
+- FTP: deleting a folder no longer gets stuck when the server refuses to list it ("550 … cannot be listed"). FileBridge then lists it the older way, or removes it as it is.
+
 ## 1.3.2
 - Extract zip: the zip is only deleted afterwards when every file was extracted; otherwise it stays, so you can try again.
 - The same zip can't be extracted twice at the same time any more.
