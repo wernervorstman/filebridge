@@ -326,11 +326,15 @@ class FtpClient:
         out = []
         if 'MLST' in self.features:
             self._binary = False  # mlsd/retrlines switch the connection to TYPE A
-            for name, facts in self.ftp.mlsd(path, ['type', 'size', 'modify', 'unix.mode']):
-                if facts.get('type', '').lower() in ('cdir', 'pdir') or name in ('.', '..'):
-                    continue
-                out.append(_attr_from_facts(name, facts))
-            return out
+            try:
+                for name, facts in self.ftp.mlsd(path, ['type', 'size', 'modify', 'unix.mode']):
+                    if facts.get('type', '').lower() in ('cdir', 'pdir') or name in ('.', '..'):
+                        continue
+                    out.append(_attr_from_facts(name, facts))
+                return out
+            except ftplib.error_perm:
+                # some servers refuse MLSD for a folder they do list with LIST (e.g. "550 ... cannot be listed")
+                out = []
         lines = []
         self._binary = False
         self.ftp.cwd(path)

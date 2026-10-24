@@ -48,7 +48,22 @@ def makedirs(sftp, path, on_create=None):
 
 
 def rmtree(sftp, path, check=None):
-    for a in sftp.listdir_attr(path):
+    try:
+        items = sftp.listdir_attr(path)
+    except OSError:
+        # The server won't list it: it may be an empty folder or a link to a folder. Try to remove it as it is.
+        try:
+            sftp.rmdir(path)
+            return
+        except OSError:
+            pass
+        try:
+            sftp.remove(path)
+            return
+        except OSError:
+            pass
+        raise
+    for a in items:
         if check:
             check()
         full = posixpath.join(path, a.filename)
