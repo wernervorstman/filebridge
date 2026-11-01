@@ -166,6 +166,7 @@ checksums), from the public GitHub API. `python3 tools/download_counts.py --hist
 `~/Documents/FileBridge Downloads`: open `FileBridge Downloads.html` there in your browser (and bookmark it). It shows
 the totals per platform, per release and over time; the history (one snapshot per day) is in `history.js` next to it,
 and every time you open or reload the page it asks GitHub for the newest numbers.
+`tools/downloads.command` does all of this with a double-click: it updates the history and opens the page.
 
 ## Verifying a download
 
