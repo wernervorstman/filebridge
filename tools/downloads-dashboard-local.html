@@ -42,6 +42,10 @@ h2 { font: 800 14px/1.2 var(--display); text-transform: uppercase; letter-spacin
 .chart text { fill: var(--muted); font: 11px var(--body); font-variant-numeric: tabular-nums; }
 .chart .grid { stroke: var(--line); stroke-width: 1; }
 .chart .line { fill: none; stroke: var(--green); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
+.chart .line.gap { stroke-dasharray: 2 7; }
+.chart .day { fill: var(--green); }
+.chart .day.wide { opacity: .35; }
+.chart text.val { fill: var(--ink); font-weight: 600; }
 .chart .area { fill: var(--green); opacity: .12; }
 .chart .pt { fill: var(--green); }
 .chart .pt.last { fill: var(--panel); stroke: var(--green); stroke-width: 2.5; }
@@ -79,6 +83,11 @@ h2 { font: 800 14px/1.2 var(--display); text-transform: uppercase; letter-spacin
   </section>
 
   <section class="panel">
+    <h2>Nieuw per dag</h2>
+    <div id="daily"><div class="empty">Vanaf de tweede meting zie je hier de nieuwe downloads per dag.</div></div>
+  </section>
+
+  <section class="panel">
     <h2>Per versie</h2>
     <div id="releases"><div class="empty">Nog geen gegevens. De eerste meting verschijnt zodra die is opgeslagen.</div></div>
     <div class="legend"><span><i class="dot mac"></i>macOS (.dmg)</span><span><i class="dot win"></i>Windows (.exe)</span><span><i class="dot linux"></i>Linux (.tar.gz)</span></div>
@@ -99,17 +108,44 @@ function render(snaps) {
   if (!snaps.length) return;
   snaps.sort((a, b) => a.date.localeCompare(b.date));
   const last = snaps[snaps.length - 1];
-  const prev = snaps.length > 1 ? snaps[snaps.length - 2] : null;
+  const base = weekAgo(snaps, last);
   const when = new Date(last.taken_at || (last.date + 'T12:00:00'));
   $('stamp').textContent = 'Bijgewerkt ' + when.toLocaleString('nl-NL', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
   const tiles = [['tTotal', 'dTotal', 'total'], ['tMac', 'dMac', 'mac'], ['tWin', 'dWin', 'win'], ['tLinux', 'dLinux', 'linux']];
   for (const [t, d, k] of tiles) {
     $(t).textContent = nf.format(last[k] || 0);
-    const diff = prev ? (last[k] || 0) - (prev[k] || 0) : null;
-    $(d).textContent = diff == null ? '' : (diff > 0 ? `+${nf.format(diff)} sinds ${fmtDate(prev.date)}` : `geen nieuwe sinds ${fmtDate(prev.date)}`);
+    const diff = base ? (last[k] || 0) - (base[k] || 0) : null;
+    const days = base ? dayNum(last.date) - dayNum(base.date) : 0;
+    $(d).textContent = diff == null ? '' : (diff > 0 ? `+${nf.format(diff)} in ${days} dagen` : `geen nieuwe in ${days} dagen`);
   }
+  const lastNew = lastGrowth(snaps);
+  if (lastNew && base) $('dTotal').textContent += ` · laatste nieuwe op ${fmtDate(lastNew.date)}`;
   renderTrend(snaps);
+  renderDaily(snaps);
   renderReleases(last.releases || []);
+}
+
+const dayNum = d => Math.floor(Date.parse(d + 'T12:00:00Z') / 864e5);
+const dayStr = n => new Date(n * 864e5).toISOString().slice(0, 10);
+function weekAgo(snaps, last) {  // the newest snapshot at least 7 days old, else the oldest one
+  if (snaps.length < 2) return null;
+  const limit = dayNum(last.date) - 7;
+  return [...snaps].reverse().find(s => dayNum(s.date) <= limit) || snaps[0];
+}
+function lastGrowth(snaps) {  // the snapshot in which the total last went up
+  for (let i = snaps.length - 1; i > 0; i--) if (snaps[i].total > snaps[i - 1].total) return snaps[i];
+  return null;
+}
+function niceTicks(max, count = 4) {  // round steps: 0, 25, 50, 75, 100
+  const raw = Math.max(1, max) / count, mag = 10 ** Math.floor(Math.log10(raw));
+  const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(v => v >= raw);
+  const n = Math.max(1, Math.ceil(max / step));
+  return Array.from({ length: n + 1 }, (_, i) => i * step);
+}
+function dateLabels(first, lastDay, x, y) {  // about eight dates at even distances, counted back from today
+  const every = Math.max(1, Math.ceil((lastDay - first + 1) / 8)), out = [];
+  for (let d = lastDay; d >= first; d -= every) out.push(`<text x="${x(d)}" y="${y}" text-anchor="middle">${fmtDate(dayStr(d))}</text>`);
+  return out.join('');
 }
 
 function renderTrend(snaps) {
@@ -119,21 +155,52 @@ function renderTrend(snaps) {
     return;
   }
   const W = 900, H = 240, L = 44, R = 18, T = 14, B = 30;
-  const max = Math.max(...snaps.map(s => s.total));
-  const top = Math.max(10, Math.ceil(max * 1.15 / 10) * 10);
-  const x = i => L + (W - L - R) * (snaps.length === 1 ? 0.5 : i / (snaps.length - 1));
+  const first = dayNum(snaps[0].date), lastDay = dayNum(snaps[snaps.length - 1].date);
+  const ticks = niceTicks(Math.max(...snaps.map(s => s.total)));
+  const top = ticks[ticks.length - 1];
+  const x = d => L + (W - L - R) * (d - first) / Math.max(1, lastDay - first);
   const y = v => T + (H - T - B) * (1 - v / top);
-  const ticks = [0, .25, .5, .75, 1].map(f => Math.round(top * f));
-  const pts = snaps.map((s, i) => [x(i), y(s.total)]);
-  const line = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
-  const area = line + ` L ${pts[pts.length - 1][0].toFixed(1)} ${y(0)} L ${pts[0][0].toFixed(1)} ${y(0)} Z`;
-  const every = Math.max(1, Math.ceil(snaps.length / 8));
+  const pts = snaps.map(s => [x(dayNum(s.date)), y(s.total)]);
+  const seg = (a, b) => `M${a[0].toFixed(1)} ${a[1].toFixed(1)} L${b[0].toFixed(1)} ${b[1].toFixed(1)}`;
+  let solid = '', gaps = '';
+  for (let i = 1; i < pts.length; i++) {
+    if (dayNum(snaps[i].date) - dayNum(snaps[i - 1].date) > 1) gaps += seg(pts[i - 1], pts[i]) + ' ';
+    else solid += seg(pts[i - 1], pts[i]) + ' ';
+  }
+  const area = 'M' + pts.map(p => p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' L') + ` L${pts[pts.length - 1][0].toFixed(1)} ${y(0)} L${pts[0][0].toFixed(1)} ${y(0)} Z`;
   box.innerHTML = `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Totaal aantal downloads per dag">
     ${ticks.map(v => `<line class="grid" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/><text x="${L - 8}" y="${y(v) + 4}" text-anchor="end">${nf.format(v)}</text>`).join('')}
-    <path class="area" d="${area}"/><path class="line" d="${line}"/>
+    <path class="area" d="${area}"/><path class="line" d="${solid}"/><path class="line gap" d="${gaps}"/>
     ${pts.map((p, i) => `<circle class="pt${i === pts.length - 1 ? ' last' : ''}" cx="${p[0]}" cy="${p[1]}" r="${i === pts.length - 1 ? 5 : 3}"><title>${fmtDate(snaps[i].date)}: ${nf.format(snaps[i].total)}</title></circle>`).join('')}
-    ${snaps.map((s, i) => (i % every === 0 || i === snaps.length - 1) ? `<text x="${x(i)}" y="${H - 8}" text-anchor="middle">${fmtDate(s.date)}</text>` : '').join('')}
-  </svg>`;
+    ${dateLabels(first, lastDay, x, H - 8)}
+  </svg>${gaps ? '<div class="legend"><span>Stippellijn: dagen zonder meting.</span></div>' : ''}`;
+}
+
+// New downloads per day. Without a measurement in between, one wider, lighter bar covers those days together.
+function renderDaily(snaps) {
+  const box = $('daily');
+  if (snaps.length < 2) return;
+  const W = 900, H = 170, L = 44, R = 18, T = 18, B = 30;
+  const first = dayNum(snaps[0].date), lastDay = dayNum(snaps[snaps.length - 1].date);
+  const bars = snaps.slice(1).map((s, i) => {
+    const p = snaps[i];
+    return { from: dayNum(p.date) + 1, to: dayNum(s.date), n: Math.max(0, s.total - p.total), fromDate: p.date, toDate: s.date };
+  });
+  const ticks = niceTicks(Math.max(...bars.map(b => b.n)), 3);
+  const top = ticks[ticks.length - 1];
+  const dayW = (W - L - R) / (lastDay - first + 1);
+  const x = d => L + (d - first + .5) * dayW;
+  const y = v => T + (H - T - B) * (1 - v / top);
+  box.innerHTML = `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Nieuwe downloads per dag">
+    ${ticks.map(v => `<line class="grid" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/><text x="${L - 8}" y="${y(v) + 4}" text-anchor="end">${nf.format(v)}</text>`).join('')}
+    ${bars.filter(b => b.n).map(b => {
+      const span = b.to - b.from + 1, bx = x(b.from) - dayW / 2 + 1.5, bw = span * dayW - 3;
+      const when = span > 1 ? `${fmtDate(dayStr(b.from))} t/m ${fmtDate(b.toDate)}` : fmtDate(b.toDate);
+      return `<rect class="day${span > 1 ? ' wide' : ''}" x="${bx.toFixed(1)}" y="${y(b.n).toFixed(1)}" width="${bw.toFixed(1)}" height="${(y(0) - y(b.n)).toFixed(1)}" rx="2"><title>${when}: +${nf.format(b.n)}</title></rect>
+        <text class="val" x="${(bx + bw / 2).toFixed(1)}" y="${(y(b.n) - 4).toFixed(1)}" text-anchor="middle">${nf.format(b.n)}</text>`;
+    }).join('')}
+    ${dateLabels(first, lastDay, x, H - 8)}
+  </svg>${bars.some(b => b.n && b.to > b.from) ? '<div class="legend"><span>Lichte balk: meerdere dagen samen, omdat er tussendoor geen meting was.</span></div>' : ''}`;
 }
 
 function renderReleases(rels) {
