@@ -3,6 +3,7 @@ import os
 import posixpath
 import threading
 import time
+import zipfile
 
 from . import __version__, deploy, diagnose, extract, filezilla_import, localfs, perms, sync, system, transfer, webinfo
 from .editing import EditManager
@@ -11,7 +12,7 @@ from .common import ApiError, LoginFailed
 from .i18n import tr
 from .jobs import JobManager
 from .plugins import PluginContext, PluginManager
-from .ftp import FtpRemote, FtpTimeout
+from .ftp import FtpRemote, FtpTimeout, RangeReader
 from .remote import Remote
 from .sites import SiteStore
 
@@ -596,25 +597,18 @@ class App:
             files = [n for n in names if not n.endswith('/') and not n.startswith('__MACOSX/')]
             return {'info': {'top_folder': deploy.top_folder(names), 'files': len(files), 'sample': files[:12],
                              'names': files[:5000]}}
-        with r.lock:
-            size = r.sftp.stat(zp).st_size or 0
-        if size > 300 * 1024 * 1024:
-            return {'info': None}
-        import tempfile
-        with tempfile.TemporaryDirectory(prefix='filebridge_') as td:
-            lz = os.path.join(td, 'preview.zip')
-            with r.lock:
-                r.sftp.get(zp, lz) if hasattr(r.sftp, 'get') else self._ftp_fetch(r.sftp, zp, lz)
-            return {'info': deploy.inspect(lz)}
-
-    @staticmethod
-    def _ftp_fetch(client, remote_path, local_path):
-        with client.open(remote_path, 'rb') as rf, open(local_path, 'wb') as f:
-            while True:
-                data = rf.read(256 * 1024)
-                if not data:
-                    break
-                f.write(data)
+        # Read only the table of contents at the end of the zip, over a connection of its own, so the rest of
+        # FileBridge keeps working meanwhile (a whole zip could take minutes to download)
+        client = r.new_sftp()
+        try:
+            a = client.stat(zp)
+            f = client.open(zp, 'rb') if hasattr(client, 'get') else RangeReader(client, client.normalize(zp), a.st_size or 0)
+            with f:
+                return {'info': deploy.inspect(zp, fileobj=f, size=a.st_size, mtime=a.st_mtime)}
+        except (OSError, zipfile.BadZipFile) as e:
+            raise ApiError(tr('Not a valid zip file: {error}', error=e))
+        finally:
+            client.close()
 
     def api_extract(self, b):
         """Upload & extract a local zip, or extract a zip that is already on the server."""

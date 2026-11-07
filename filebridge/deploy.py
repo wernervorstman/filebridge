@@ -54,8 +54,9 @@ def resolve_zip(cfg):
     return max(matches, key=os.path.getmtime)
 
 
-def inspect(zp):
-    with zipfile.ZipFile(zp) as z:
+def inspect(zp, fileobj=None, size=None, mtime=None):
+    """Contents of a zip. With fileobj (a seekable file on the server) only its table of contents is read."""
+    with zipfile.ZipFile(fileobj or zp) as z:
         names = [n for n in z.namelist()
                  if not n.startswith('__MACOSX/') and os.path.basename(n.rstrip('/')) != '.DS_Store']
     files = [n for n in names if not n.endswith('/')]
@@ -65,8 +66,10 @@ def inspect(zp):
         t = next(iter(tops))
         if all(n.startswith(t + '/') for n in names):
             top = t
-    st = os.stat(zp)
-    return {'zip': zp, 'name': os.path.basename(zp), 'size': st.st_size, 'mtime': st.st_mtime,
+    if fileobj is None:
+        st = os.stat(zp)
+        size, mtime = st.st_size, st.st_mtime
+    return {'zip': zp, 'name': os.path.basename(zp.rstrip('/')), 'size': size, 'mtime': mtime,
             'files': len(files), 'top_folder': top, 'sample': files[:12], 'names': files[:5000]}
 
 

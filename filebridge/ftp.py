@@ -249,6 +249,71 @@ class FtpFile:
         self.close()
 
 
+class RangeReader:
+    """A read-only, seekable view of a file on an FTP server: every read fetches just that part (REST + RETR).
+    Enough for zipfile to read the table of contents at the end of a zip without downloading all of it."""
+    CHUNK = 256 * 1024
+
+    def __init__(self, client, path, size):
+        self.client, self.path, self.size = client, path, size
+        self.pos = 0
+        self.buf_start, self.buf = 0, b''
+
+    def seekable(self):
+        return True
+
+    def readable(self):
+        return True
+
+    def tell(self):
+        return self.pos
+
+    def seek(self, offset, whence=0):
+        self.pos = offset if whence == 0 else self.pos + offset if whence == 1 else self.size + offset
+        return self.pos
+
+    def _fetch(self, start, n):
+        f = FtpFile(self.client, self.path, 'rb')
+        f.seek(start)
+        try:
+            parts, got = [], 0
+            while got < n:
+                d = f.read(min(65536, n - got))
+                if not d:
+                    break
+                parts.append(d)
+                got += len(d)
+            return b''.join(parts)
+        finally:
+            try:
+                f.close()  # stops the download early; the server answers "426 aborted" or "226", both fine
+            except OSError:
+                pass
+
+    def read(self, n=-1):
+        if n is None or n < 0:
+            n = self.size - self.pos
+        n = max(0, min(n, self.size - self.pos))
+        if not n:
+            return b''
+        end = self.pos + n
+        if not (self.buf_start <= self.pos and end <= self.buf_start + len(self.buf)):
+            self.buf_start = self.pos
+            self.buf = self._fetch(self.pos, max(n, self.CHUNK))
+        data = self.buf[self.pos - self.buf_start:end - self.buf_start]
+        self.pos += len(data)
+        return data
+
+    def close(self):
+        self.buf = b''
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
+
+
 class FtpClient:
     """The subset of paramiko.SFTPClient that FileBridge uses, over FTP/FTPS."""
 
