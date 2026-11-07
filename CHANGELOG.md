@@ -3,7 +3,7 @@
 What changed in each FileBridge version. The section of a version is also the text of its GitHub release
 and of the update notice in the app, so keep it short and written for users.
 
-## 1.3.4
+## 1.3.5
 - Extract a zip that is on the server: FileBridge no longer downloads the whole zip just to show what is in it. It reads only the zip's table of contents, over a connection of its own, so the rest of the app keeps working.
 
 ## 1.3.3

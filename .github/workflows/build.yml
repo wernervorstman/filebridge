@@ -26,7 +26,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-14          # Apple Silicon
+          - os: macos-15          # Apple Silicon
             artifact: FileBridge-macOS
           - os: windows-latest
             artifact: FileBridge-Windows
